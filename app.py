@@ -264,52 +264,138 @@ def analyze_video(video_path, model_type):
 def display_photo_results(result, threshold):
     """Fotoğraf analiz sonuçlarını göster"""
     
-    is_fake = result['confidence'] > threshold
-    if is_fake:
+    # Sonuç kutusu
+    if result['is_fake']:
         st.markdown(f"""
         <div class="result-box fake-result">
-            <h3>🚨 Bu görsel büyük olasılıkla <b>SAHTE</b>!</h3>
-            <p>Yapay zeka analizine göre bu fotoğrafın üzerinde oynama veya sahtecilik yapılmış olabilir.</p>
-            <p><b>Model:</b> {result['model_type']}</p>
-            <p><b>İşlem Süresi:</b> {result['analysis_time']:.2f} sn</p>
+            <h3>🚨 SAHTE TESPİT EDİLDİ</h3>
+            <p><strong>Model:</strong> {result['model_type']}</p>
+            <p><strong>Güven Skoru:</strong> <span class="confidence-high">{result['confidence']:.2%}</span></p>
+            <p><strong>Analiz Süresi:</strong> {result['analysis_time']:.2f} saniye</p>
         </div>
         """, unsafe_allow_html=True)
     else:
         st.markdown(f"""
         <div class="result-box real-result">
-            <h3>✅ Bu görsel <b>GERÇEK</b> görünüyor.</h3>
-            <p>Yapay zeka analizine göre bu fotoğrafta sahtecilik tespit edilmedi.</p>
-            <p><b>Model:</b> {result['model_type']}</p>
-            <p><b>İşlem Süresi:</b> {result['analysis_time']:.2f} sn</p>
+            <h3>✅ GERÇEK TESPİT EDİLDİ</h3>
+            <p><strong>Model:</strong> {result['model_type']}</p>
+            <p><strong>Güven Skoru:</strong> <span class="confidence-high">{result['confidence']:.2%}</span></p>
+            <p><strong>Analiz Süresi:</strong> {result['analysis_time']:.2f} saniye</p>
         </div>
         """, unsafe_allow_html=True)
     
-
+    # Detaylı bilgiler
+    st.subheader("📊 Detaylı Analiz")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Güven Skoru", f"{result['confidence']:.2%}")
+        st.caption("Güven skoru, modelin içeriğin sahte olma olasılığına dair verdiği değerdir. Yüksek skor = daha yüksek sahte olasılığı. Bu skor, yukarıda belirlediğiniz güven eşiği ile karşılaştırılır.")
+    
+    with col2:
+        st.metric("Manipülasyon Skoru", f"{result['manipulation_score']:.2%}")
+    
+    with col3:
+        st.metric("Yüz Tespit Edildi", "✅" if result['face_detected'] else "❌")
+    
+    # Güven skoru grafiği
+    fig, ax = plt.subplots(figsize=(8, 4))
+    
+    # Gauge chart benzeri görselleştirme
+    confidence = result['confidence']
+    colors = ['#ff4444', '#ffaa00', '#44ff44']
+    
+    if confidence < 0.5:
+        color = colors[0]
+        label = "Düşük Güven"
+    elif confidence < 0.8:
+        color = colors[1]
+        label = "Orta Güven"
+    else:
+        color = colors[2]
+        label = "Yüksek Güven"
+    
+    ax.bar(['Güven Skoru'], [confidence], color=color, alpha=0.7)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel('Güven Oranı')
+    ax.set_title(f'Analiz Sonucu: {label}')
+    
+    # Eşik çizgisi
+    ax.axhline(y=threshold, color='red', linestyle='--', alpha=0.7, label=f'Eşik ({threshold:.2%})')
+    ax.legend()
+    
+    st.pyplot(fig)
 
 def display_video_results(results, threshold):
     """Video analiz sonuçlarını göster"""
     
-    is_fake = results['overall_confidence'] > threshold
-    if is_fake:
+    # Genel sonuç
+    if results['is_fake']:
         st.markdown(f"""
         <div class="result-box fake-result">
-            <h3>🚨 Bu video büyük olasılıkla <b>SAHTE</b>!</h3>
-            <p>Yapay zeka analizine göre bu videoda sahtecilik veya oynama tespit edildi.</p>
-            <p><b>Model:</b> {results['model_type']}</p>
-            <p><b>İşlem Süresi:</b> {results['duration']:.2f} sn</p>
+            <h3>🚨 SAHTE VİDEO TESPİT EDİLDİ</h3>
+            <p><strong>Sahte Frame Oranı:</strong> {results['fake_percentage']:.1f}%</p>
+            <p><strong>Ortalama Güven Skoru:</strong> {results['overall_confidence']:.2%}</p>
         </div>
         """, unsafe_allow_html=True)
     else:
         st.markdown(f"""
         <div class="result-box real-result">
-            <h3>✅ Bu video <b>GERÇEK</b> görünüyor.</h3>
-            <p>Yapay zeka analizine göre bu videoda sahtecilik tespit edilmedi.</p>
-            <p><b>Model:</b> {results['model_type']}</p>
-            <p><b>İşlem Süresi:</b> {results['duration']:.2f} sn</p>
+            <h3>✅ GERÇEK VİDEO TESPİT EDİLDİ</h3>
+            <p><strong>Sahte Frame Oranı:</strong> {results['fake_percentage']:.1f}%</p>
+            <p><strong>Ortalama Güven Skoru:</strong> {results['overall_confidence']:.2%}</p>
         </div>
         """, unsafe_allow_html=True)
     
-
+    # Video bilgileri
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Video Süresi", f"{results['duration']:.2f} saniye")
+    
+    with col2:
+        st.metric("FPS", f"{results['fps']:.1f}")
+    
+    with col3:
+        st.metric("Analiz Edilen Frame", results['total_frames'])
+    
+    with col4:
+        st.metric("Sahte Frame %", f"{results['fake_percentage']:.1f}%")
+    st.caption("Ortalama güven skoru, analiz edilen tüm frame'lerin sahte olma olasılığının ortalamasıdır. Yüksek skor, videonun sahte olma ihtimalinin yüksek olduğunu gösterir. Bu skor, güven eşiği ile karşılaştırılır.")
+    
+    # Frame analiz grafiği
+    st.subheader("📈 Frame-by-Frame Analiz")
+    
+    frame_numbers = [r['frame_number'] for r in results['frame_results']]
+    confidences = [r['confidence'] for r in results['frame_results']]
+    is_fake = [r['is_fake'] for r in results['frame_results']]
+    
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+    
+    # Güven skoru grafiği
+    colors = ['green' if not fake else 'red' for fake in is_fake]
+    ax1.scatter(frame_numbers, confidences, c=colors, alpha=0.7)
+    ax1.axhline(y=threshold, color='red', linestyle='--', alpha=0.7, label=f'Eşik ({threshold:.2%})')
+    ax1.set_ylabel('Güven Skoru')
+    ax1.set_title('Frame Güven Skorları')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Sahte frame dağılımı
+    fake_frames = [i for i, fake in enumerate(is_fake) if fake]
+    real_frames = [i for i, fake in enumerate(is_fake) if not fake]
+    
+    ax2.hist([real_frames, fake_frames], label=['Gerçek', 'Sahte'], 
+             bins=10, alpha=0.7, color=['green', 'red'])
+    ax2.set_xlabel('Frame Numarası')
+    ax2.set_ylabel('Frame Sayısı')
+    ax2.set_title('Frame Dağılımı')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    st.pyplot(fig)
 
 if __name__ == "__main__":
     main()
