@@ -57,22 +57,6 @@ def main():
     st.markdown('<h1 class="main-header">🔍 FakeBuster</h1>', unsafe_allow_html=True)
     st.markdown('<h3 style="text-align: center; color: #666;">Deepfake ve AI Medya Tespit Aracı</h3>', unsafe_allow_html=True)
     
-    # Sidebar
-    st.sidebar.title("⚙️ Ayarlar")
-    
-    # Model seçimi
-    model_type = st.sidebar.selectbox(
-        "Model Türü",
-        [
-            "XceptionNet (video)",
-            "FaceForensics++ (video)",
-            "GANDetector (foto)",
-            "Hibrit Model (foto & video)"
-        ]
-    )
-    # Model adını sadeleştir (analiz fonksiyonları için)
-    model_type_clean = model_type.split(' (')[0]
-    
     # Sabit güven eşiği (threshold)
     confidence_threshold = 0.50
 
@@ -80,15 +64,28 @@ def main():
     tab1, tab2, tab3 = st.tabs(["📸 Fotoğraf Analizi", "🎥 Video Analizi", "ℹ️ Hakkında"])
     
     with tab1:
-        photo_analysis_tab(model_type_clean, confidence_threshold)
+        photo_analysis_tab(confidence_threshold)
     with tab2:
-        video_analysis_tab(model_type_clean, confidence_threshold)
+        video_analysis_tab(confidence_threshold)
     
     with tab3:
         about_tab()
 
-def photo_analysis_tab(model_type, confidence_threshold):
+def photo_analysis_tab(confidence_threshold):
     st.header("📸 Fotoğraf Analizi")
+    
+    # Fotoğraf analizi için model seçimi
+    st.sidebar.title("⚙️ Fotoğraf Analizi Ayarları")
+    model_type = st.sidebar.selectbox(
+        "Model Türü",
+        [
+            "GANDetector (foto)",
+            "Hibrit Model (foto & video)"
+        ],
+        key="photo_model"
+    )
+    # Model adını sadeleştir (analiz fonksiyonları için)
+    model_type_clean = model_type.split(' (')[0]
     
     uploaded_file = st.file_uploader(
         "Analiz edilecek fotoğrafı yükleyin",
@@ -103,7 +100,7 @@ def photo_analysis_tab(model_type, confidence_threshold):
         with col1:
             st.subheader("📷 Yüklenen Fotoğraf")
             image = Image.open(uploaded_file)
-            st.image(image, caption="Analiz edilecek fotoğraf", use_column_width=True)
+            st.image(image, caption="Analiz edilecek fotoğraf", use_container_width=True)
         
         with col2:
             st.subheader("🔍 Analiz Sonuçları")
@@ -111,13 +108,27 @@ def photo_analysis_tab(model_type, confidence_threshold):
             # Progress bar
             with st.spinner("Fotoğraf analiz ediliyor..."):
                 # Simüle edilmiş analiz (gerçek model entegrasyonu için placeholder)
-                result = analyze_photo(image, model_type)
+                result = analyze_photo(image, model_type_clean)
                 
                 # Sonuçları göster
                 display_photo_results(result, confidence_threshold)
 
-def video_analysis_tab(model_type, confidence_threshold):
+def video_analysis_tab(confidence_threshold):
     st.header("🎥 Video Analizi")
+    
+    # Video analizi için model seçimi
+    st.sidebar.title("⚙️ Video Analizi Ayarları")
+    model_type = st.sidebar.selectbox(
+        "Model Türü",
+        [
+            "XceptionNet (video)",
+            "FaceForensics++ (video)",
+            "Hibrit Model (foto & video)"
+        ],
+        key="video_model"
+    )
+    # Model adını sadeleştir (analiz fonksiyonları için)
+    model_type_clean = model_type.split(' (')[0]
     
     uploaded_video = st.file_uploader(
         "Analiz edilecek videoyu yükleyin",
@@ -136,7 +147,7 @@ def video_analysis_tab(model_type, confidence_threshold):
         
         # Video analizi
         with st.spinner("Video analiz ediliyor (bu işlem biraz zaman alabilir)..."):
-            results = analyze_video(video_path, model_type)
+            results = analyze_video(video_path, model_type_clean)
             
             # Sonuçları göster
             display_video_results(results, confidence_threshold)
