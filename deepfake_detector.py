@@ -296,7 +296,7 @@ class DeepfakeDetector:
                 image_features = self._extract_image_features(image)
                 confidence = self._simple_feature_based_prediction(image_features)
                 return {
-                    'is_fake': confidence > 0.6,
+                    'is_fake': confidence > 0.5,
                     'confidence': confidence,
                     'face_detected': False,
                     'analysis_time': time.time() - start_time,
@@ -313,7 +313,7 @@ class DeepfakeDetector:
                     face_results.append({
                         'bbox': face['bbox'],
                         'confidence': confidence,
-                        'is_fake': confidence > 0.6
+                        'is_fake': confidence > 0.5
                     })
             
             # Genel sonuç
@@ -336,7 +336,7 @@ class DeepfakeDetector:
                 image_features = self._extract_image_features(image)
                 confidence = self._simple_feature_based_prediction(image_features)
                 return {
-                    'is_fake': confidence > 0.6,
+                    'is_fake': confidence > 0.5,
                     'confidence': confidence,
                     'face_detected': True,
                     'analysis_time': time.time() - start_time,
@@ -349,7 +349,7 @@ class DeepfakeDetector:
             image_features = self._extract_image_features(image)
             confidence = self._simple_feature_based_prediction(image_features)
             return {
-                'is_fake': confidence > 0.6,
+                'is_fake': confidence > 0.5,
                 'confidence': confidence,
                 'face_detected': False,
                 'analysis_time': time.time() - start_time,
@@ -410,7 +410,11 @@ class DeepfakeDetector:
                 
         except Exception as e:
             logger.error(f"Model tahmin hatası: {e}")
-            return np.random.uniform(0.2, 0.8)
+            # Hata durumunda özellik tabanlı tahmin yap
+            if face_features is not None:
+                return self._simple_feature_based_prediction(face_features)
+            else:
+                return 0.5
     
     def _extract_image_features(self, image: np.ndarray) -> np.ndarray:
         """
@@ -452,7 +456,8 @@ class DeepfakeDetector:
             
         except Exception as e:
             logger.error(f"Özellik çıkarma hatası: {e}")
-            return np.random.rand(320)  # Fallback özellik vektörü
+            # Hata durumunda basit özellik vektörü
+            return np.ones(320) * 0.01  # Düşük değerli fallback
     
     def _simple_feature_based_prediction(self, features: np.ndarray) -> float:
         """
@@ -467,40 +472,55 @@ class DeepfakeDetector:
         try:
             if features is not None and len(features) > 0:
                 # Görüntü özelliklerine dayalı tahmin
-                # Histogram varyansı
+                # Histogram özellikleri
                 hist_features = features[:256]
                 hist_variance = np.var(hist_features)
+                hist_entropy = -np.sum(hist_features * np.log(hist_features + 1e-8))
                 
                 # Gradient özellikleri
                 grad_features = features[256:]
                 grad_mean = np.mean(grad_features)
                 grad_variance = np.var(grad_features)
                 
-                # Manipülasyon göstergeleri
-                # Yüksek histogram varyansı genellikle manipülasyon göstergesi
-                # Düşük gradient ortalaması da manipülasyon göstergesi olabilir
-                
+                # Manipülasyon göstergeleri analizi
                 score = 0.0
                 
-                # Histogram varyansına dayalı skor (0-0.4)
-                hist_score = min(0.4, hist_variance * 10)
+                # 1. Histogram analizi (0-0.3)
+                # Düşük entropi genellikle manipülasyon göstergesi
+                hist_score = max(0, 0.3 - hist_entropy * 0.1)
                 score += hist_score
                 
-                # Gradient özelliklerine dayalı skor (0-0.3)
-                grad_score = min(0.3, (1 - grad_mean) * 0.5 + grad_variance * 5)
+                # 2. Gradient analizi (0-0.3)
+                # Düşük gradient ortalaması manipülasyon göstergesi
+                grad_score = max(0, 0.3 - grad_mean * 0.5)
                 score += grad_score
                 
-                # Rastgele faktör (0-0.3) - gerçekçilik için
-                random_factor = np.random.uniform(0, 0.3)
-                score += random_factor
+                # 3. Varyans analizi (0-0.2)
+                # Çok yüksek veya çok düşük varyans şüpheli
+                combined_variance = (hist_variance + grad_variance) / 2
+                if combined_variance > 0.1 or combined_variance < 0.001:
+                    var_score = 0.2
+                else:
+                    var_score = 0.0
+                score += var_score
                 
-                return min(0.95, score)
+                # 4. Tutarlılık kontrolü (0-0.2)
+                # Özellikler arası tutarsızlık manipülasyon göstergesi
+                feature_std = np.std(features)
+                consistency_score = min(0.2, feature_std * 2)
+                score += consistency_score
+                
+                # Sonuç normalizasyonu
+                final_score = min(0.95, max(0.05, score))
+                
+                return final_score
             else:
-                return np.random.uniform(0.2, 0.8)
+                # Özellik yoksa orta değer
+                return 0.5
                 
         except Exception as e:
             logger.error(f"Basit tahmin hatası: {e}")
-            return np.random.uniform(0.2, 0.8)
+            return 0.5
     
     def analyze_video(self, video_path: str, max_frames: int = 30) -> Dict:
         """
@@ -576,7 +596,7 @@ class DeepfakeDetector:
                     'total_frames_analyzed': 0,
                     'total_video_frames': frame_count,
                     'fake_percentage': 0,
-                    'overall_confidence': 0.5,
+                    'overall_confidence': 0.3,  # Düşük güven skoru
                     'is_fake': False,
                     'duration': duration,
                     'fps': fps,
@@ -590,7 +610,7 @@ class DeepfakeDetector:
                 'frame_results': [],
                 'total_frames_analyzed': 0,
                 'fake_percentage': 0,
-                'overall_confidence': 0.5,
+                'overall_confidence': 0.3,  # Düşük güven skoru
                 'is_fake': False,
                 'analysis_time': time.time() - start_time,
                 'error': str(e)
