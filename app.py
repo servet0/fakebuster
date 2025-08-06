@@ -63,26 +63,51 @@ def main():
     # Model seçimi
     model_type = st.sidebar.selectbox(
         "Model Türü",
-        ["XceptionNet", "FaceForensics++", "GANDetector", "Hibrit Model"]
+        [
+            "XceptionNet (video)",
+            "FaceForensics++ (video)",
+            "GANDetector (foto)",
+            "Hibrit Model (foto & video)"
+        ]
     )
+    # Model adını sadeleştir (analiz fonksiyonları için)
+    model_type_clean = model_type.split(' (')[0]
     
-    # Güven eşiği
-    confidence_threshold = st.sidebar.slider(
-        "Güven Eşiği",
-        min_value=0.0,
-        max_value=1.0,
-        value=0.7,
-        step=0.05
+    # Analiz hassasiyeti seçimi
+    analiz_seviyesi = st.sidebar.selectbox(
+        "Analiz Hassasiyeti",
+        [
+            "Yüksek Hassasiyet (Doğru sonuç ihtimali yüksek)",
+            "Orta Hassasiyet",
+            "Normal ",
+            "Düşük Hassasiyet (Doğru sonuç ihtimali düşük)"
+        ],
+        index=2
     )
+
+    # Analiz seviyesine göre güven eşiği belirle
+    if "Yüksek" in analiz_seviyesi:
+        confidence_threshold = 0.15
+    elif "Orta" in analiz_seviyesi:
+        confidence_threshold = 0.35
+    elif "Düşük" in analiz_seviyesi:
+        confidence_threshold = 0.75
+    else:  # Normal
+        confidence_threshold = 0.55
     
+    # Analiz seviyesi açıklaması
+    st.sidebar.info(
+        
+    )
+
     # Ana içerik
     tab1, tab2, tab3 = st.tabs(["📸 Fotoğraf Analizi", "🎥 Video Analizi", "ℹ️ Hakkında"])
     
     with tab1:
-        photo_analysis_tab(model_type, confidence_threshold)
+        photo_analysis_tab(model_type_clean, confidence_threshold)
     
     with tab2:
-        video_analysis_tab(model_type, confidence_threshold)
+        video_analysis_tab(model_type_clean, confidence_threshold)
     
     with tab3:
         about_tab()
@@ -280,6 +305,7 @@ def display_photo_results(result, threshold):
     
     with col1:
         st.metric("Güven Skoru", f"{result['confidence']:.2%}")
+        st.caption("Güven skoru, modelin içeriğin sahte olma olasılığına dair verdiği değerdir. Yüksek skor = daha yüksek sahte olasılığı. Bu skor, yukarıda belirlediğiniz güven eşiği ile karşılaştırılır.")
     
     with col2:
         st.metric("Manipülasyon Skoru", f"{result['manipulation_score']:.2%}")
@@ -350,6 +376,7 @@ def display_video_results(results, threshold):
     
     with col4:
         st.metric("Sahte Frame %", f"{results['fake_percentage']:.1f}%")
+    st.caption("Ortalama güven skoru, analiz edilen tüm frame'lerin sahte olma olasılığının ortalamasıdır. Yüksek skor, videonun sahte olma ihtimalinin yüksek olduğunu gösterir. Bu skor, güven eşiği ile karşılaştırılır.")
     
     # Frame analiz grafiği
     st.subheader("📈 Frame-by-Frame Analiz")
