@@ -243,16 +243,17 @@ def analyze_photo(image, model_type):
         }
 
 def analyze_video(video_path, model_type):
-    """Video analizi"""
+    """Gelişmiş video analizi"""
     try:
         # DeepfakeDetector'ı başlat
         detector = DeepfakeDetector(model_type)
         
-        # Video analizi
+        # Gelişmiş video analizi
         result = detector.analyze_video(video_path, max_frames=30)
         
-        # Sonuç formatını uyumlu hale getir
+        # Yeni gelişmiş sonuç formatını döndür
         return {
+            # Eski format uyumluluğu
             'frame_results': result['frame_results'],
             'total_frames': result['total_frames_analyzed'],
             'fake_percentage': result['fake_percentage'],
@@ -261,7 +262,20 @@ def analyze_video(video_path, model_type):
             'duration': result['duration'],
             'fps': result['fps'],
             'model_type': model_type,
-            'total_video_frames': result['total_video_frames']
+            'total_video_frames': result['total_video_frames'],
+            
+            # Yeni gelişmiş metrikler
+            'detailed_frame_results': result.get('detailed_frame_results', []),
+            'adjusted_fake_percentage': result.get('adjusted_fake_percentage', result['fake_percentage']),
+            'overall_uncertainty': result.get('overall_uncertainty', 0.0),
+            'overall_reliability': result.get('overall_reliability', 1.0),
+            'temporal_consistency': result.get('temporal_consistency', 1.0),
+            'decision_threshold': result.get('decision_threshold', 50.0),
+            'video_category': result.get('video_category', 'Bilinmiyor'),
+            'category_icon': result.get('category_icon', '❓'),
+            'video_ensemble': result.get('video_ensemble', {}),
+            'quality_metrics': result.get('quality_metrics', {}),
+            'technical_details': result.get('technical_details', {})
         }
         
     except Exception as e:
@@ -271,11 +285,23 @@ def analyze_video(video_path, model_type):
             'frame_results': [],
             'total_frames': 0,
             'fake_percentage': 0,
-            'overall_confidence': 0.5,
+            'overall_confidence': 0.3,
             'is_fake': False,
             'duration': 0,
             'fps': 0,
             'model_type': model_type,
+            'total_video_frames': 0,
+            'detailed_frame_results': [],
+            'adjusted_fake_percentage': 0,
+            'overall_uncertainty': 1.0,
+            'overall_reliability': 0.0,
+            'temporal_consistency': 0.0,
+            'decision_threshold': 50.0,
+            'video_category': 'Hata',
+            'category_icon': '❌',
+            'video_ensemble': {},
+            'quality_metrics': {'certainty': 0.0, 'consistency': 0.0, 'reliability': 0.0, 'frame_stability': 0.0},
+            'technical_details': {},
             'error': str(e)
         }
 
@@ -450,74 +476,242 @@ def display_photo_results(result, threshold):
     st.pyplot(fig)
 
 def display_video_results(results, threshold):
-    """Video analiz sonuçlarını göster"""
+    """Gelişmiş video analiz sonuçlarını göster"""
     
-    # Genel sonuç
+    # Gelişmiş sonuç kutusu
+    category_icon = results.get('category_icon', '❓')
+    video_category = results.get('video_category', 'Bilinmiyor')
+    overall_reliability = results.get('overall_reliability', 0.0)
+    adjusted_fake_percentage = results.get('adjusted_fake_percentage', results['fake_percentage'])
+    
     if results['is_fake']:
         st.markdown(f"""
         <div class="result-box fake-result">
-            <h3>🚨 SAHTE VİDEO TESPİT EDİLDİ</h3>
+            <h3>🚨 SAHTE VİDEO TESPİT EDİLDİ {category_icon}</h3>
+            <p><strong>Model:</strong> {results['model_type']}</p>
+            <p><strong>Güvenilirlik:</strong> {video_category} ({overall_reliability:.1%})</p>
             <p><strong>Sahte Frame Oranı:</strong> {results['fake_percentage']:.1f}%</p>
+            <p><strong>Ayarlı Oran:</strong> {adjusted_fake_percentage:.1f}%</p>
             <p><strong>Ortalama Güven Skoru:</strong> {results['overall_confidence']:.2%}</p>
         </div>
         """, unsafe_allow_html=True)
     else:
         st.markdown(f"""
         <div class="result-box real-result">
-            <h3>✅ GERÇEK VİDEO TESPİT EDİLDİ</h3>
+            <h3>✅ GERÇEK VİDEO TESPİT EDİLDİ {category_icon}</h3>
+            <p><strong>Model:</strong> {results['model_type']}</p>
+            <p><strong>Güvenilirlik:</strong> {video_category} ({overall_reliability:.1%})</p>
             <p><strong>Sahte Frame Oranı:</strong> {results['fake_percentage']:.1f}%</p>
+            <p><strong>Ayarlı Oran:</strong> {adjusted_fake_percentage:.1f}%</p>
             <p><strong>Ortalama Güven Skoru:</strong> {results['overall_confidence']:.2%}</p>
         </div>
         """, unsafe_allow_html=True)
     
-    # Video bilgileri
+    # Gelişmiş video metrikleri
+    st.subheader("📊 Gelişmiş Video Analiz Metrikleri")
+    
+    # İlk satır - Temel metrikler
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Video Süresi", f"{results['duration']:.2f} saniye")
+        st.metric("Video Süresi", f"{results['duration']:.2f}s")
+        st.caption("Toplam video süresi")
     
     with col2:
         st.metric("FPS", f"{results['fps']:.1f}")
+        st.caption("Saniye başına frame")
     
     with col3:
         st.metric("Analiz Edilen Frame", results['total_frames'])
+        st.caption(f"Toplam {results['total_video_frames']} frame'den")
     
     with col4:
         st.metric("Sahte Frame %", f"{results['fake_percentage']:.1f}%")
-    st.caption("Ortalama güven skoru, analiz edilen tüm frame'lerin sahte olma olasılığının ortalamasıdır. Yüksek skor, videonun sahte olma ihtimalinin yüksek olduğunu gösterir. Bu skor, güven eşiği ile karşılaştırılır.")
+        st.caption("Sahte tespit edilen frame oranı")
+    
+    # İkinci satır - Gelişmiş metrikler
+    col5, col6, col7, col8 = st.columns(4)
+    
+    with col5:
+        st.metric("Belirsizlik", f"{results.get('overall_uncertainty', 0.0):.1%}")
+        st.caption("Ortalama belirsizlik seviyesi")
+    
+    with col6:
+        st.metric("Temporal Tutarlılık", f"{results.get('temporal_consistency', 1.0):.1%}")
+        st.caption("Frame'ler arası tutarlılık")
+    
+    with col7:
+        st.metric("Eşik Değeri", f"{results.get('decision_threshold', 50.0):.1f}%")
+        st.caption("Kullanılan karar eşiği")
+    
+    with col8:
+        quality_metrics = results.get('quality_metrics', {})
+        frame_stability = quality_metrics.get('frame_stability', 0.0)
+        st.metric("Frame Kararlılığı", f"{1.0 - frame_stability:.1%}")
+        st.caption("Frame skorlarının kararlılığı")
+    
+    # Video ensemble detayları
+    st.subheader("🎯 Video Ensemble Analiz Detayları")
+    
+    video_ensemble = results.get('video_ensemble', {})
+    technical_details = results.get('technical_details', {})
+    
+    if video_ensemble and 'metrics' in video_ensemble:
+        st.write("**Video Ensemble Metrikleri:**")
+        
+        # Ensemble metriklerini göster
+        col_ensemble = st.columns(4)
+        ensemble_metrics = video_ensemble['metrics']
+        
+        metric_names = {
+            'confidence_stability': 'Güven Kararlılığı',
+            'uncertainty_trend': 'Belirsizlik Trendi',
+            'reliability_consistency': 'Güvenilirlik Tutarlılığı',
+            'frame_agreement': 'Frame Uyumu'
+        }
+        
+        for i, (metric, value) in enumerate(ensemble_metrics.items()):
+            with col_ensemble[i % 4]:
+                st.metric(
+                    metric_names.get(metric, metric), 
+                    f"{value:.1%}",
+                    help=f"Ensemble {metric} metriği"
+                )
+    
+    # Teknik detaylar (genişletilebilir)
+    with st.expander("🔧 Video Teknik Detayları"):
+        col_tech1, col_tech2 = st.columns(2)
+        
+        with col_tech1:
+            st.write("**Analiz Bilgileri:**")
+            st.write(f"- İşlenen frame sayısı: {technical_details.get('frames_processed', 'N/A')}")
+            st.write(f"- Frame aralığı: {technical_details.get('frame_interval', 'N/A')}")
+            st.write(f"- Eşik ayarlaması: {'✅' if technical_details.get('threshold_adjusted', False) else '❌'}")
+            st.write(f"- Temporal ayarlama: {'✅' if technical_details.get('temporal_adjustment_applied', False) else '❌'}")
+        
+        with col_tech2:
+            st.write("**Kullanılan Video Yöntemleri:**")
+            methods_used = technical_details.get('ensemble_methods_used', [])
+            video_method_names = {
+                'temporal_consistency': '⏱️ Temporal Tutarlılık',
+                'frame_ensemble': '🎯 Frame Ensemble',
+                'reliability_weighting': '⚖️ Güvenilirlik Ağırlıklandırma'
+            }
+            for method in methods_used:
+                st.write(f"- {video_method_names.get(method, method)}")
     
     # Frame analiz grafiği
-    st.subheader("📈 Frame-by-Frame Analiz")
+    st.subheader("📈 Gelişmiş Frame-by-Frame Analiz")
     
-    frame_numbers = [r['frame_number'] for r in results['frame_results']]
-    confidences = [r['confidence'] for r in results['frame_results']]
-    is_fake = [r['is_fake'] for r in results['frame_results']]
+    # Gelişmiş frame analizi için detaylı frame verisi kullan
+    detailed_frames = results.get('detailed_frame_results', results['frame_results'])
     
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
-    
-    # Güven skoru grafiği
-    colors = ['green' if not fake else 'red' for fake in is_fake]
-    ax1.scatter(frame_numbers, confidences, c=colors, alpha=0.7)
-    ax1.axhline(y=threshold, color='red', linestyle='--', alpha=0.7, label=f'Eşik ({threshold:.2%})')
-    ax1.set_ylabel('Güven Skoru')
-    ax1.set_title('Frame Güven Skorları')
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-    
-    # Sahte frame dağılımı
-    fake_frames = [i for i, fake in enumerate(is_fake) if fake]
-    real_frames = [i for i, fake in enumerate(is_fake) if not fake]
-    
-    ax2.hist([real_frames, fake_frames], label=['Gerçek', 'Sahte'], 
-             bins=10, alpha=0.7, color=['green', 'red'])
-    ax2.set_xlabel('Frame Numarası')
-    ax2.set_ylabel('Frame Sayısı')
-    ax2.set_title('Frame Dağılımı')
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    st.pyplot(fig)
+    if detailed_frames:
+        frame_numbers = [r['frame_number'] for r in detailed_frames]
+        confidences = [r['confidence'] for r in detailed_frames]
+        is_fake = [r['is_fake'] for r in detailed_frames]
+        
+        # Gelişmiş metrikler (varsa)
+        adjusted_confidences = [r.get('adjusted_confidence', r['confidence']) for r in detailed_frames]
+        uncertainties = [r.get('uncertainty', 0.0) for r in detailed_frames]
+        reliabilities = [r.get('reliability_score', 1.0) for r in detailed_frames]
+        
+        # 3x2 subplot için gelişmiş grafik
+        fig, axes = plt.subplots(3, 2, figsize=(15, 12))
+        
+        # 1. Güven skoru grafiği (gelişmiş)
+        colors = ['green' if not fake else 'red' for fake in is_fake]
+        axes[0,0].scatter(frame_numbers, confidences, c=colors, alpha=0.7, s=50)
+        axes[0,0].plot(frame_numbers, confidences, alpha=0.3, color='blue', linewidth=1)
+        threshold_used = results.get('decision_threshold', threshold * 100) / 100  # % to decimal
+        axes[0,0].axhline(y=threshold_used, color='red', linestyle='--', alpha=0.7, label=f'Dinamik Eşik ({threshold_used:.1%})')
+        axes[0,0].set_ylabel('Güven Skoru')
+        axes[0,0].set_title('Frame Güven Skorları (Ham)')
+        axes[0,0].legend()
+        axes[0,0].grid(True, alpha=0.3)
+        
+        # 2. Ayarlı güven skoru
+        axes[0,1].scatter(frame_numbers, adjusted_confidences, c=colors, alpha=0.7, s=50)
+        axes[0,1].plot(frame_numbers, adjusted_confidences, alpha=0.3, color='purple', linewidth=1)
+        axes[0,1].axhline(y=threshold_used, color='red', linestyle='--', alpha=0.7, label=f'Eşik ({threshold_used:.1%})')
+        axes[0,1].set_ylabel('Ayarlı Güven Skoru')
+        axes[0,1].set_title('Frame Güven Skorları (Ayarlı)')
+        axes[0,1].legend()
+        axes[0,1].grid(True, alpha=0.3)
+        
+        # 3. Belirsizlik grafiği
+        axes[1,0].plot(frame_numbers, uncertainties, color='orange', linewidth=2, marker='o', markersize=4)
+        axes[1,0].fill_between(frame_numbers, uncertainties, alpha=0.3, color='orange')
+        axes[1,0].set_ylabel('Belirsizlik')
+        axes[1,0].set_title('Frame Belirsizlik Seviyeleri')
+        axes[1,0].grid(True, alpha=0.3)
+        
+        # 4. Güvenilirlik grafiği
+        axes[1,1].plot(frame_numbers, reliabilities, color='green', linewidth=2, marker='s', markersize=4)
+        axes[1,1].fill_between(frame_numbers, reliabilities, alpha=0.3, color='green')
+        axes[1,1].set_ylabel('Güvenilirlik')
+        axes[1,1].set_title('Frame Güvenilirlik Skorları')
+        axes[1,1].grid(True, alpha=0.3)
+        
+        # 5. Sahte frame dağılımı
+        fake_frames = [i for i, fake in enumerate(is_fake) if fake]
+        real_frames = [i for i, fake in enumerate(is_fake) if not fake]
+        
+        if fake_frames or real_frames:
+            axes[2,0].hist([real_frames, fake_frames], label=['Gerçek', 'Sahte'], 
+                         bins=min(10, len(detailed_frames)), alpha=0.7, color=['green', 'red'])
+        axes[2,0].set_xlabel('Frame İndeksi')
+        axes[2,0].set_ylabel('Frame Sayısı')
+        axes[2,0].set_title('Frame Sınıflandırma Dağılımı')
+        axes[2,0].legend()
+        axes[2,0].grid(True, alpha=0.3)
+        
+        # 6. Temporal tutarlılık (rolling average)
+        if len(confidences) > 1:
+            # 3-frame rolling average
+            window_size = min(3, len(confidences))
+            rolling_avg = []
+            for i in range(len(confidences)):
+                start = max(0, i - window_size // 2)
+                end = min(len(confidences), i + window_size // 2 + 1)
+                rolling_avg.append(np.mean(confidences[start:end]))
+            
+            axes[2,1].plot(frame_numbers, confidences, alpha=0.5, color='lightblue', label='Ham Skor')
+            axes[2,1].plot(frame_numbers, rolling_avg, color='darkblue', linewidth=2, label='Rolling Average')
+            axes[2,1].set_xlabel('Frame Numarası')
+            axes[2,1].set_ylabel('Güven Skoru')
+            axes[2,1].set_title('Temporal Tutarlılık (Rolling Average)')
+            axes[2,1].legend()
+            axes[2,1].grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        st.pyplot(fig)
+        
+        # Frame detayları tablosu (opsiyonel)
+        with st.expander("📋 Detaylı Frame Analiz Tablosu"):
+            import pandas as pd
+            
+            # DataFrame oluştur
+            df_data = []
+            for frame in detailed_frames[:20]:  # İlk 20 frame'i göster
+                df_data.append({
+                    'Frame': frame['frame_number'],
+                    'Zaman (s)': f"{frame['timestamp']:.2f}",
+                    'Güven Skoru': f"{frame['confidence']:.2%}",
+                    'Ayarlı Skor': f"{frame.get('adjusted_confidence', frame['confidence']):.2%}",
+                    'Belirsizlik': f"{frame.get('uncertainty', 0.0):.2%}",
+                    'Güvenilirlik': f"{frame.get('reliability_score', 1.0):.2%}",
+                    'Sonuç': '🚨 Sahte' if frame['is_fake'] else '✅ Gerçek',
+                    'Kategori': frame.get('result_category', 'N/A')
+                })
+            
+            df = pd.DataFrame(df_data)
+            st.dataframe(df, use_container_width=True)
+            
+            if len(detailed_frames) > 20:
+                st.info(f"Tabloda ilk 20 frame gösteriliyor. Toplam {len(detailed_frames)} frame analiz edildi.")
+    else:
+        st.warning("Frame analizi için veri bulunamadı.")
 
 if __name__ == "__main__":
     main()

@@ -1774,18 +1774,20 @@ class DeepfakeDetector:
     
     def analyze_video(self, video_path: str, max_frames: int = 30) -> Dict:
         """
-        Video analizi
+        Ultra gelişmiş video analizi - Temporal Tutarlılık + Ensemble + Çoklu Ölçek
         
         Args:
             video_path: Video dosya yolu
             max_frames: Analiz edilecek maksimum frame sayısı
             
         Returns:
-            Video analiz sonuçları
+            Kapsamlı video analiz sonuçları
         """
         start_time = time.time()
         
         try:
+            logger.info("🎬 Gelişmiş video analizi başlatılıyor...")
+            
             cap = cv2.VideoCapture(video_path)
             
             if not cap.isOpened():
@@ -1795,28 +1797,64 @@ class DeepfakeDetector:
             fps = cap.get(cv2.CAP_PROP_FPS)
             duration = frame_count / fps
             
+            logger.info(f"📹 Video bilgileri: {frame_count} frame, {fps:.1f} FPS, {duration:.1f}s")
+            
             # Frame analizleri
             frame_results = []
+            detailed_frame_results = []
             total_fake_frames = 0
+            
+            # Ensemble metrikleri
+            frame_confidences = []
+            frame_uncertainties = []
+            frame_reliabilities = []
             
             # Belirli aralıklarla frame'leri analiz et
             frame_interval = max(1, frame_count // max_frames)
             
-            for i in range(0, min(frame_count, max_frames * frame_interval), frame_interval):
+            logger.info(f"🔍 {max_frames} frame analiz edilecek (her {frame_interval} frame)")
+            
+            for frame_idx, i in enumerate(range(0, min(frame_count, max_frames * frame_interval), frame_interval)):
                 cap.set(cv2.CAP_PROP_POS_FRAMES, i)
                 ret, frame = cap.read()
                 
                 if ret:
-                    # Frame analizi
+                    logger.info(f"📊 Frame {frame_idx+1}/{max_frames} analiz ediliyor...")
+                    
+                    # Gelişmiş frame analizi
                     result = self.analyze_image(frame)
                     
-                    if result['face_detected'] and 'error' not in result:
+                    # Detaylı frame sonucu
+                    detailed_frame_results.append({
+                        'frame_number': i,
+                        'timestamp': i / fps,
+                        'confidence': result['confidence'],
+                        'adjusted_confidence': result.get('adjusted_confidence', result['confidence']),
+                        'uncertainty': result.get('uncertainty', 0.0),
+                        'reliability_score': result.get('reliability_score', 1.0),
+                        'scale_consistency': result.get('scale_consistency', 1.0),
+                        'decision_threshold': result.get('decision_threshold', 0.5),
+                        'result_category': result.get('result_category', 'Bilinmiyor'),
+                        'is_fake': result['is_fake'],
+                        'face_detected': result['face_detected'],
+                        'face_count': result.get('face_count', 0),
+                        'quality_metrics': result.get('quality_metrics', {}),
+                        'analysis_methods': result.get('analysis_methods', {})
+                    })
+                    
+                    # Ensemble metrikleri topla
+                    frame_confidences.append(result['confidence'])
+                    frame_uncertainties.append(result.get('uncertainty', 0.0))
+                    frame_reliabilities.append(result.get('reliability_score', 1.0))
+                    
+                    # Eski format için uyumluluk
+                    if 'error' not in result:
                         frame_results.append({
                             'frame_number': i,
                             'timestamp': i / fps,
                             'confidence': result['confidence'],
                             'is_fake': result['is_fake'],
-                            'faces_analyzed': result.get('faces_analyzed', 0)
+                            'faces_analyzed': result.get('face_count', 0)
                         })
                         
                         if result['is_fake']:
@@ -1824,46 +1862,127 @@ class DeepfakeDetector:
             
             cap.release()
             
-            # Genel video sonucu
-            if frame_results:
-                fake_percentage = (total_fake_frames / len(frame_results)) * 100
-                overall_confidence = np.mean([f['confidence'] for f in frame_results])
+            # Gelişmiş video analizi
+            if detailed_frame_results:
+                logger.info("🔗 Video ensemble analizi yapılıyor...")
+                
+                # Temel metrikler
+                fake_percentage = (total_fake_frames / len(detailed_frame_results)) * 100
+                overall_confidence = np.mean(frame_confidences)
+                overall_uncertainty = np.mean(frame_uncertainties)
+                overall_reliability = np.mean(frame_reliabilities)
+                
+                # Temporal tutarlılık analizi
+                temporal_consistency = self._calculate_temporal_consistency(detailed_frame_results)
+                
+                # Video ensemble sonucu
+                video_ensemble_result = self._video_ensemble_analysis(detailed_frame_results)
+                
+                # Son karar
+                # Temporal tutarlılık düşükse daha muhafazakar ol
+                adjusted_fake_percentage = fake_percentage
+                if temporal_consistency < 0.7:
+                    adjusted_fake_percentage *= 0.8
+                    logger.info("⚖️ Düşük temporal tutarlılık - Sonuç ayarlandı")
+                
+                # Güvenilirlik skoruna göre eşik ayarla
+                decision_threshold = 50.0  # %50 varsayılan
+                if overall_reliability < 0.7:
+                    decision_threshold = 60.0
+                    logger.info("🔒 Düşük güvenilirlik - Video eşiği %60'a yükseltildi")
+                elif overall_reliability < 0.5:
+                    decision_threshold = 70.0
+                    logger.info("🔒 Çok düşük güvenilirlik - Video eşiği %70'e yükseltildi")
+                
+                is_fake_video = adjusted_fake_percentage > decision_threshold
+                
+                # Sonuç kategorisi
+                if overall_reliability >= 0.8:
+                    video_category = "Yüksek Güvenilirlik"
+                    category_icon = "🟢"
+                elif overall_reliability >= 0.6:
+                    video_category = "Orta Güvenilirlik"
+                    category_icon = "🟡"
+                else:
+                    video_category = "Düşük Güvenilirlik"
+                    category_icon = "🔴"
+                
+                logger.info(f"✅ Video analizi tamamlandı - {category_icon} {video_category}")
+                logger.info(f"📊 Sonuç: {'SAHTE' if is_fake_video else 'GERÇEK'} Video (Sahte: {fake_percentage:.1f}%)")
                 
                 return {
+                    # Eski format uyumluluğu
                     'frame_results': frame_results,
-                    'total_frames_analyzed': len(frame_results),
+                    'total_frames_analyzed': len(detailed_frame_results),
                     'total_video_frames': frame_count,
                     'fake_percentage': fake_percentage,
                     'overall_confidence': overall_confidence,
-                    'is_fake': fake_percentage > 50,
+                    'is_fake': is_fake_video,
                     'duration': duration,
                     'fps': fps,
-                    'analysis_time': time.time() - start_time
+                    'analysis_time': time.time() - start_time,
+                    
+                    # Yeni gelişmiş format
+                    'detailed_frame_results': detailed_frame_results,
+                    'adjusted_fake_percentage': adjusted_fake_percentage,
+                    'overall_uncertainty': overall_uncertainty,
+                    'overall_reliability': overall_reliability,
+                    'temporal_consistency': temporal_consistency,
+                    'decision_threshold': decision_threshold,
+                    'video_category': video_category,
+                    'category_icon': category_icon,
+                    'video_ensemble': video_ensemble_result,
+                    'quality_metrics': {
+                        'certainty': 1.0 - overall_uncertainty,
+                        'consistency': temporal_consistency,
+                        'reliability': overall_reliability,
+                        'frame_stability': np.std(frame_confidences) if frame_confidences else 0.0
+                    },
+                    'technical_details': {
+                        'frames_processed': len(detailed_frame_results),
+                        'frame_interval': frame_interval,
+                        'ensemble_methods_used': ['temporal_consistency', 'frame_ensemble', 'reliability_weighting'],
+                        'threshold_adjusted': decision_threshold > 50.0,
+                        'temporal_adjustment_applied': temporal_consistency < 0.7
+                    }
                 }
             else:
+                logger.warning("❌ Hiçbir frame analiz edilemedi")
                 return {
                     'frame_results': [],
                     'total_frames_analyzed': 0,
                     'total_video_frames': frame_count,
                     'fake_percentage': 0,
-                    'overall_confidence': 0.3,  # Düşük güven skoru
+                    'overall_confidence': 0.3,
                     'is_fake': False,
                     'duration': duration,
                     'fps': fps,
                     'analysis_time': time.time() - start_time,
-                    'error': 'Hiçbir frame analiz edilemedi'
+                    'error': 'Hiçbir frame analiz edilemedi',
+                    'detailed_frame_results': [],
+                    'overall_uncertainty': 1.0,
+                    'overall_reliability': 0.0,
+                    'temporal_consistency': 0.0,
+                    'video_category': 'Hata',
+                    'category_icon': '❌'
                 }
                 
         except Exception as e:
-            logger.error(f"Video analiz hatası: {e}")
+            logger.error(f"❌ Video analiz hatası: {e}")
             return {
                 'frame_results': [],
                 'total_frames_analyzed': 0,
                 'fake_percentage': 0,
-                'overall_confidence': 0.3,  # Düşük güven skoru
+                'overall_confidence': 0.3,
                 'is_fake': False,
                 'analysis_time': time.time() - start_time,
-                'error': str(e)
+                'error': str(e),
+                'detailed_frame_results': [],
+                'overall_uncertainty': 1.0,
+                'overall_reliability': 0.0,
+                'temporal_consistency': 0.0,
+                'video_category': 'Hata',
+                'category_icon': '❌'
             }
     
     def _calculate_scale_consistency(self, scale_results: Dict) -> float:
@@ -1922,6 +2041,148 @@ class DeepfakeDetector:
             logger.error(f"Güvenilirlik hesaplama hatası: {e}")
             return 0.0
 
+    def _calculate_temporal_consistency(self, frame_results: List[Dict]) -> float:
+        """
+        Temporal tutarlılık hesapla
+        
+        Args:
+            frame_results: Frame analiz sonuçları
+            
+        Returns:
+            Temporal tutarlılık skoru (0-1)
+        """
+        try:
+            if len(frame_results) < 2:
+                return 1.0
+            
+            # Confidence değerleri
+            confidences = [frame['confidence'] for frame in frame_results]
+            
+            # Temporal değişim analizi
+            changes = []
+            for i in range(1, len(confidences)):
+                change = abs(confidences[i] - confidences[i-1])
+                changes.append(change)
+            
+            # Ortalama değişim
+            avg_change = np.mean(changes)
+            
+            # Tutarlılık skoru (düşük değişim = yüksek tutarlılık)
+            consistency = max(0.0, 1.0 - avg_change * 2)
+            
+            return consistency
+            
+        except Exception as e:
+            logger.error(f"Temporal tutarlılık hesaplama hatası: {e}")
+            return 0.0
+    
+    def _video_ensemble_analysis(self, frame_results: List[Dict]) -> Dict:
+        """
+        Video için ensemble analizi
+        
+        Args:
+            frame_results: Frame analiz sonuçları
+            
+        Returns:
+            Video ensemble sonuçları
+        """
+        try:
+            if not frame_results:
+                return {}
+            
+            # Frame bazlı metrikler
+            frame_confidences = [frame['confidence'] for frame in frame_results]
+            frame_uncertainties = [frame['uncertainty'] for frame in frame_results]
+            frame_reliabilities = [frame['reliability_score'] for frame in frame_results]
+            
+            # Ensemble metrikler
+            ensemble_metrics = {
+                'confidence_stability': 1.0 - np.std(frame_confidences),
+                'uncertainty_trend': self._calculate_trend(frame_uncertainties),
+                'reliability_consistency': 1.0 - np.std(frame_reliabilities),
+                'frame_agreement': self._calculate_frame_agreement(frame_results)
+            }
+            
+            # Weighted ensemble score
+            weights = {
+                'confidence_stability': 0.3,
+                'uncertainty_trend': 0.2,
+                'reliability_consistency': 0.3,
+                'frame_agreement': 0.2
+            }
+            
+            ensemble_score = sum(
+                ensemble_metrics[metric] * weight 
+                for metric, weight in weights.items()
+            )
+            
+            return {
+                'ensemble_score': ensemble_score,
+                'metrics': ensemble_metrics,
+                'weights': weights,
+                'total_frames': len(frame_results)
+            }
+            
+        except Exception as e:
+            logger.error(f"Video ensemble analizi hatası: {e}")
+            return {}
+    
+    def _calculate_trend(self, values: List[float]) -> float:
+        """
+        Değer serisindeki trend hesapla
+        
+        Args:
+            values: Değer listesi
+            
+        Returns:
+            Trend skoru (0-1)
+        """
+        try:
+            if len(values) < 2:
+                return 1.0
+            
+            # Basit trend analizi
+            x = np.arange(len(values))
+            slope = np.polyfit(x, values, 1)[0]
+            
+            # Trend skoruna çevir (düşük slope = yüksek skor)
+            trend_score = max(0.0, 1.0 - abs(slope) * 10)
+            
+            return trend_score
+            
+        except:
+            return 0.5
+    
+    def _calculate_frame_agreement(self, frame_results: List[Dict]) -> float:
+        """
+        Frame'ler arası uyum hesapla
+        
+        Args:
+            frame_results: Frame analiz sonuçları
+            
+        Returns:
+            Uyum skoru (0-1)
+        """
+        try:
+            if not frame_results:
+                return 0.0
+            
+            # is_fake kararları
+            decisions = [frame['is_fake'] for frame in frame_results]
+            
+            # Çoğunluk kararı
+            fake_count = sum(decisions)
+            majority_decision = fake_count > len(decisions) / 2
+            
+            # Uyum hesapla
+            agreements = [decision == majority_decision for decision in decisions]
+            agreement_score = sum(agreements) / len(agreements)
+            
+            return agreement_score
+            
+        except:
+            return 0.0
+
     def get_model_info(self) -> Dict:
         """Model bilgilerini döndür"""
         return {
@@ -1930,5 +2191,5 @@ class DeepfakeDetector:
             'device': str(self.device),
             'face_detection_available': self.face_detection is not None,
             'ensemble_methods': ['feature_based', 'statistical', 'anomaly', 'entropy'],
-            'analysis_features': ['multi_scale', 'uncertainty_estimation', 'reliability_scoring']
+            'analysis_features': ['multi_scale', 'uncertainty_estimation', 'reliability_scoring', 'temporal_consistency']
         }
