@@ -2,6 +2,8 @@
 
 Bu proje, deepfake ve AI ile oluşturulmuş video ve fotoğrafları tespit etmek için geliştirilmiş yerel bir prototiptir.
 
+https://github.com/user-attachments/assets/66f835a7-8e66-402c-8b3d-9804764717dc
+
 ## Özellikler
 
 - 📸 Fotoğraf analizi (Deepfake tespiti)
