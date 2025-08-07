@@ -248,7 +248,7 @@ class DeepfakeDetector:
     
     def extract_face_features(self, image: np.ndarray, face_bbox: Tuple) -> np.ndarray:
         """
-        Yüz bölgesinden özellik çıkar
+        Ultra gelişmiş yüz özellik çıkarma
         
         Args:
             image: Görüntü
@@ -262,17 +262,272 @@ class DeepfakeDetector:
             face_region = image[y:y+h, x:x+w]
             
             # Yüz bölgesini yeniden boyutlandır
-            face_resized = cv2.resize(face_region, (224, 224))
+            face_resized = cv2.resize(face_region, (256, 256))
             
-            # Özellik çıkarma (basit histogram)
-            features = cv2.calcHist([face_resized], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
-            features = features.flatten()
+            features = []
             
-            return features
+            # 1. Renk histogramı (512)
+            color_hist = cv2.calcHist([face_resized], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+            color_hist = color_hist.flatten() / (color_hist.sum() + 1e-8)
+            features.extend(color_hist)
+            
+            # 2. Gri tonlama özellikleri
+            gray_face = cv2.cvtColor(face_resized, cv2.COLOR_BGR2GRAY)
+            
+            # Histogram (256)
+            gray_hist = cv2.calcHist([gray_face], [0], None, [256], [0, 256])
+            gray_hist = gray_hist.flatten() / (gray_hist.sum() + 1e-8)
+            features.extend(gray_hist)
+            
+            # 3. Gradient özellikleri (256)
+            grad_x = cv2.Sobel(gray_face, cv2.CV_64F, 1, 0, ksize=3)
+            grad_y = cv2.Sobel(gray_face, cv2.CV_64F, 0, 1, ksize=3)
+            gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+            gradient_direction = np.arctan2(grad_y, grad_x)
+            
+            # Gradient magnitude histogramı (128)
+            grad_mag_hist = cv2.calcHist([gradient_magnitude.astype(np.uint8)], [0], None, [128], [0, 256])
+            grad_mag_hist = grad_mag_hist.flatten() / (grad_mag_hist.sum() + 1e-8)
+            features.extend(grad_mag_hist)
+            
+            # Gradient direction histogramı (128)
+            grad_dir_hist = cv2.calcHist([gradient_direction.astype(np.uint8)], [0], None, [128], [0, 256])
+            grad_dir_hist = grad_dir_hist.flatten() / (grad_dir_hist.sum() + 1e-8)
+            features.extend(grad_dir_hist)
+            
+            # 4. Laplacian özellikleri (128)
+            laplacian = cv2.Laplacian(gray_face, cv2.CV_64F)
+            laplacian_hist = cv2.calcHist([laplacian.astype(np.uint8)], [0], None, [128], [0, 256])
+            laplacian_hist = laplacian_hist.flatten() / (laplacian_hist.sum() + 1e-8)
+            features.extend(laplacian_hist)
+            
+            # 5. LBP özellikleri (256)
+            lbp = self._compute_lbp(gray_face)
+            lbp_hist = cv2.calcHist([lbp], [0], None, [256], [0, 256])
+            lbp_hist = lbp_hist.flatten() / (lbp_hist.sum() + 1e-8)
+            features.extend(lbp_hist)
+            
+            # 6. Yüz simetri analizi (128)
+            symmetry_features = self._analyze_face_symmetry(gray_face)
+            features.extend(symmetry_features)
+            
+            # 7. Yüz bölgesi analizi (256)
+            region_features = self._analyze_face_regions(gray_face)
+            features.extend(region_features)
+            
+            # 8. Yüz kenar analizi (128)
+            edge_features = self._analyze_face_edges(gray_face)
+            features.extend(edge_features)
+            
+            # 9. Yüz doku analizi (128)
+            texture_features = self._analyze_face_texture(gray_face)
+            features.extend(texture_features)
+            
+            return np.array(features)
             
         except Exception as e:
             logger.error(f"Yüz özellik çıkarma hatası: {e}")
             return None
+    
+    def _analyze_face_symmetry(self, gray_face: np.ndarray) -> np.ndarray:
+        """
+        Gelişmiş yüz simetri analizi
+        
+        Args:
+            gray_face: Gri tonlamalı yüz görüntüsü
+            
+        Returns:
+            Simetri özellikleri
+        """
+        try:
+            h, w = gray_face.shape
+            center_x = w // 2
+            
+            # Sol ve sağ yarıyı karşılaştır
+            left_half = gray_face[:, :center_x]
+            right_half = cv2.flip(gray_face[:, center_x:], 1)
+            
+            # Boyutları eşitle
+            min_width = min(left_half.shape[1], right_half.shape[1])
+            left_half = left_half[:, :min_width]
+            right_half = right_half[:, :min_width]
+            
+            # Fark hesapla
+            diff = np.abs(left_half.astype(np.float32) - right_half.astype(np.float32))
+            
+            # Simetri özellikleri
+            symmetry_features = []
+            
+            # 1. Ortalama fark
+            symmetry_features.append(np.mean(diff) / 255.0)
+            
+            # 2. Fark standart sapması
+            symmetry_features.append(np.std(diff) / 255.0)
+            
+            # 3. Fark entropisi
+            diff_entropy = -np.sum(diff.flatten() * np.log(diff.flatten() + 1e-8))
+            symmetry_features.append(diff_entropy / 1000.0)
+            
+            # 4. Fark histogramı (64)
+            diff_hist = cv2.calcHist([diff.astype(np.uint8)], [0], None, [64], [0, 255])
+            diff_hist = diff_hist.flatten() / (diff_hist.sum() + 1e-8)
+            symmetry_features.extend(diff_hist)
+            
+            # 5. Bölgesel simetri analizi
+            regions = ['upper', 'middle', 'lower']
+            for region in regions:
+                if region == 'upper':
+                    region_diff = diff[:h//3, :]
+                elif region == 'middle':
+                    region_diff = diff[h//3:2*h//3, :]
+                else:  # lower
+                    region_diff = diff[2*h//3:, :]
+                
+                if region_diff.size > 0:
+                    region_mean = np.mean(region_diff) / 255.0
+                    region_std = np.std(region_diff) / 255.0
+                    symmetry_features.extend([region_mean, region_std])
+                else:
+                    symmetry_features.extend([0.0, 0.0])
+            
+            # 6. Simetri skoru (düşük değer = yüksek simetri)
+            symmetry_score = 1.0 - (np.mean(diff) / 255.0)
+            symmetry_features.append(symmetry_score)
+            
+            return np.array(symmetry_features)
+            
+        except Exception as e:
+            logger.error(f"Simetri analizi hatası: {e}")
+            return np.zeros(128)
+    
+    def _analyze_face_regions(self, gray_face: np.ndarray) -> np.ndarray:
+        """
+        Yüz bölgesi analizi
+        
+        Args:
+            gray_face: Gri tonlamalı yüz görüntüsü
+            
+        Returns:
+            Bölge özellikleri
+        """
+        try:
+            h, w = gray_face.shape
+            
+            # Yüz bölgelerini tanımla
+            regions = {
+                'forehead': gray_face[:h//4, :],
+                'eyes': gray_face[h//4:h//2, :],
+                'nose': gray_face[h//2:3*h//4, w//4:3*w//4],
+                'mouth': gray_face[3*h//4:, :],
+                'left_cheek': gray_face[h//4:3*h//4, :w//4],
+                'right_cheek': gray_face[h//4:3*h//4, 3*w//4:]
+            }
+            
+            features = []
+            
+            for region_name, region in regions.items():
+                if region.size > 0:
+                    # Her bölge için özellikler
+                    region_mean = np.mean(region)
+                    region_std = np.std(region)
+                    region_entropy = -np.sum(region.flatten() * np.log(region.flatten() + 1e-8))
+                    
+                    # Histogram (32 özellik)
+                    hist = cv2.calcHist([region], [0], None, [32], [0, 256])
+                    hist = hist.flatten() / (hist.sum() + 1e-8)
+                    
+                    features.extend([region_mean/255.0, region_std/255.0, region_entropy/1000.0])
+                    features.extend(hist)
+                else:
+                    features.extend([0.0] * 35)  # 3 + 32 = 35 özellik
+            
+            return np.array(features)
+            
+        except Exception as e:
+            logger.error(f"Yüz bölgesi analizi hatası: {e}")
+            return np.zeros(256)
+    
+    def _analyze_face_edges(self, gray_face: np.ndarray) -> np.ndarray:
+        """
+        Yüz kenar analizi
+        
+        Args:
+            gray_face: Gri tonlamalı yüz görüntüsü
+            
+        Returns:
+            Kenar özellikleri
+        """
+        try:
+            features = []
+            
+            # Canny kenar tespiti
+            edges = cv2.Canny(gray_face, 50, 150)
+            
+            # Kenar yoğunluğu
+            edge_density = np.sum(edges > 0) / edges.size
+            features.append(edge_density)
+            
+            # Kenar histogramı (64)
+            edge_hist = cv2.calcHist([edges], [0], None, [64], [0, 256])
+            edge_hist = edge_hist.flatten() / (edge_hist.sum() + 1e-8)
+            features.extend(edge_hist)
+            
+            # Kenar yönü analizi
+            grad_x = cv2.Sobel(gray_face, cv2.CV_64F, 1, 0, ksize=3)
+            grad_y = cv2.Sobel(gray_face, cv2.CV_64F, 0, 1, ksize=3)
+            edge_angles = np.arctan2(grad_y, grad_x)
+            
+            # Açı histogramı (63)
+            angle_hist, _ = np.histogram(edge_angles.flatten(), bins=63, range=(-np.pi, np.pi))
+            angle_hist = angle_hist / (angle_hist.sum() + 1e-8)
+            features.extend(angle_hist)
+            
+            return np.array(features)
+            
+        except Exception as e:
+            logger.error(f"Yüz kenar analizi hatası: {e}")
+            return np.zeros(128)
+    
+    def _analyze_face_texture(self, gray_face: np.ndarray) -> np.ndarray:
+        """
+        Yüz doku analizi
+        
+        Args:
+            gray_face: Gri tonlamalı yüz görüntüsü
+            
+        Returns:
+            Doku özellikleri
+        """
+        try:
+            features = []
+            
+            # Gabor filtreleri ile doku analizi
+            angles = [0, 45, 90, 135]
+            frequencies = [0.1, 0.3, 0.5]
+            
+            for angle in angles:
+                for freq in frequencies:
+                    kernel = cv2.getGaborKernel((21, 21), 3, np.radians(angle), 2*np.pi*freq, 0.5, 0, ktype=cv2.CV_32F)
+                    filtered = cv2.filter2D(gray_face, cv2.CV_8UC3, kernel)
+                    
+                    # Filtrelenmiş görüntü özellikleri
+                    filtered_mean = np.mean(filtered)
+                    filtered_std = np.std(filtered)
+                    filtered_entropy = -np.sum(filtered.flatten() * np.log(filtered.flatten() + 1e-8))
+                    
+                    features.extend([filtered_mean/255.0, filtered_std/255.0, filtered_entropy/1000.0])
+            
+            # LBP doku analizi
+            lbp = self._compute_lbp(gray_face)
+            lbp_hist = cv2.calcHist([lbp], [0], None, [32], [0, 256])
+            lbp_hist = lbp_hist.flatten() / (lbp_hist.sum() + 1e-8)
+            features.extend(lbp_hist)
+            
+            return np.array(features)
+            
+        except Exception as e:
+            logger.error(f"Yüz doku analizi hatası: {e}")
+            return np.zeros(128)
     
     def analyze_image(self, image: np.ndarray) -> Dict:
         """
@@ -405,20 +660,134 @@ class DeepfakeDetector:
             if predictions:
                 return np.mean(predictions)
             else:
-                # Fallback: özellik tabanlı basit tahmin
-                return self._simple_feature_based_prediction(face_features)
+                # Fallback: gelişmiş yüz özellik tabanlı tahmin
+                return self._advanced_face_prediction(face_features)
                 
         except Exception as e:
             logger.error(f"Model tahmin hatası: {e}")
             # Hata durumunda özellik tabanlı tahmin yap
             if face_features is not None:
-                return self._simple_feature_based_prediction(face_features)
+                return self._advanced_face_prediction(face_features)
             else:
                 return 0.5
     
+    def _advanced_face_prediction(self, face_features: np.ndarray) -> float:
+        """
+        Ultra gelişmiş yüz özellik tabanlı tahmin
+        
+        Args:
+            face_features: Yüz özellik vektörü
+            
+        Returns:
+            Tahmin skoru
+        """
+        try:
+            if face_features is not None and len(face_features) >= 2048:
+                # Özellik gruplarını ayır
+                color_features = face_features[:512]  # Renk histogramı
+                gray_features = face_features[512:768]  # Gri histogram
+                grad_mag_features = face_features[768:896]  # Gradient magnitude
+                grad_dir_features = face_features[896:1024]  # Gradient direction
+                laplacian_features = face_features[1024:1152]  # Laplacian
+                lbp_features = face_features[1152:1408]  # LBP
+                symmetry_features = face_features[1408:1536]  # Simetri
+                region_features = face_features[1536:1792]  # Bölge analizi
+                edge_features = face_features[1792:1920]  # Kenar analizi
+                texture_features = face_features[1920:2048]  # Doku analizi
+                
+                score = 0.0
+                
+                # 1. Renk analizi (0-0.12)
+                color_entropy = -np.sum(color_features * np.log(color_features + 1e-8))
+                color_variance = np.var(color_features)
+                color_score = max(0, 0.12 - color_entropy * 0.03) + min(0.06, color_variance * 0.5)
+                score += color_score
+                
+                # 2. Gri tonlama analizi (0-0.10)
+                gray_entropy = -np.sum(gray_features * np.log(gray_features + 1e-8))
+                gray_variance = np.var(gray_features)
+                gray_score = max(0, 0.10 - gray_entropy * 0.03) + min(0.05, gray_variance * 0.3)
+                score += gray_score
+                
+                # 3. Gradient magnitude analizi (0-0.10)
+                grad_mag_mean = np.mean(grad_mag_features)
+                grad_mag_variance = np.var(grad_mag_features)
+                grad_mag_score = max(0, 0.10 - grad_mag_mean * 0.2) + min(0.05, grad_mag_variance * 0.4)
+                score += grad_mag_score
+                
+                # 4. Gradient direction analizi (0-0.08)
+                grad_dir_entropy = -np.sum(grad_dir_features * np.log(grad_dir_features + 1e-8))
+                grad_dir_score = max(0, 0.08 - grad_dir_entropy * 0.02)
+                score += grad_dir_score
+                
+                # 5. Laplacian analizi (0-0.10)
+                laplacian_variance = np.var(laplacian_features)
+                laplacian_mean = np.mean(laplacian_features)
+                laplacian_score = min(0.10, laplacian_variance * 8) + max(0, 0.05 - laplacian_mean * 0.1)
+                score += laplacian_score
+                
+                # 6. LBP analizi (0-0.10)
+                lbp_entropy = -np.sum(lbp_features * np.log(lbp_features + 1e-8))
+                lbp_variance = np.var(lbp_features)
+                lbp_score = max(0, 0.10 - lbp_entropy * 0.03) + min(0.05, lbp_variance * 0.3)
+                score += lbp_score
+                
+                # 7. Simetri analizi (0-0.12)
+                symmetry_mean = symmetry_features[0] if len(symmetry_features) > 0 else 0
+                symmetry_std = symmetry_features[1] if len(symmetry_features) > 1 else 0
+                symmetry_score = min(0.12, symmetry_mean * 1.5 + symmetry_std * 0.8)
+                score += symmetry_score
+                
+                # 8. Bölge analizi (0-0.10)
+                region_variance = np.var(region_features)
+                region_entropy = -np.sum(region_features * np.log(region_features + 1e-8))
+                region_score = min(0.10, region_variance * 0.5 + region_entropy * 0.01)
+                score += region_score
+                
+                # 9. Kenar analizi (0-0.08)
+                edge_density = edge_features[0] if len(edge_features) > 0 else 0
+                edge_variance = np.var(edge_features)
+                edge_score = min(0.08, edge_density * 0.4 + edge_variance * 0.3)
+                score += edge_score
+                
+                # 10. Doku analizi (0-0.10)
+                texture_variance = np.var(texture_features)
+                texture_entropy = -np.sum(texture_features * np.log(texture_features + 1e-8))
+                texture_score = min(0.10, texture_variance * 0.4 + texture_entropy * 0.01)
+                score += texture_score
+                
+                # 11. Yüz özel tutarlılık kontrolü (0-0.06)
+                feature_correlation = np.corrcoef(face_features.reshape(-1, 1), np.arange(len(face_features)))[0, 1]
+                consistency_score = min(0.06, abs(feature_correlation) * 0.15)
+                score += consistency_score
+                
+                # 12. Yüz anomali tespiti (0-0.06)
+                z_scores = np.abs((face_features - np.mean(face_features)) / (np.std(face_features) + 1e-8))
+                anomaly_score = min(0.06, np.sum(z_scores > 3) / len(face_features) * 0.3)
+                score += anomaly_score
+                
+                # Sonuç normalizasyonu ve kalibrasyon
+                final_score = min(0.95, max(0.05, score))
+                
+                # Yüz için özel kalibrasyon
+                if final_score < 0.20:
+                    final_score *= 0.5  # Gerçek yüzler için daha düşük
+                elif final_score > 0.80:
+                    final_score = 0.80 + (final_score - 0.80) * 2.0  # Sahte yüzler için daha yüksek
+                elif final_score > 0.60:
+                    final_score = 0.60 + (final_score - 0.60) * 1.3  # Orta seviye manipülasyonlar için
+                
+                return final_score
+            else:
+                return 0.5
+                
+        except Exception as e:
+            logger.error(f"Ultra gelişmiş yüz tahmin hatası: {e}")
+            return 0.5
+    
     def _extract_image_features(self, image: np.ndarray) -> np.ndarray:
         """
-        Görüntüden özellik çıkar
+        Ultra gelişmiş görüntü özellik çıkarma
         
         Args:
             image: Görüntü
@@ -428,7 +797,7 @@ class DeepfakeDetector:
         """
         try:
             # Görüntüyü küçült
-            resized = cv2.resize(image, (64, 64))
+            resized = cv2.resize(image, (256, 256))
             
             # Gri tonlamaya çevir
             if len(resized.shape) == 3:
@@ -436,32 +805,479 @@ class DeepfakeDetector:
             else:
                 gray = resized
             
-            # Histogram özellikleri
-            hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
-            hist = hist.flatten() / hist.sum()  # Normalize et
+            features = []
             
-            # Gradient özellikleri
+            # 1. Histogram özellikleri (256)
+            hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
+            hist = hist.flatten() / (hist.sum() + 1e-8)
+            features.extend(hist)
+            
+            # 2. Gradient özellikleri
             grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
             grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
             gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+            gradient_direction = np.arctan2(grad_y, grad_x)
             
-            # Gradient histogramı
-            grad_hist = cv2.calcHist([gradient_magnitude.astype(np.uint8)], [0], None, [64], [0, 256])
-            grad_hist = grad_hist.flatten() / (grad_hist.sum() + 1e-8)
+            # Gradient magnitude histogramı (128)
+            grad_mag_hist = cv2.calcHist([gradient_magnitude.astype(np.uint8)], [0], None, [128], [0, 256])
+            grad_mag_hist = grad_mag_hist.flatten() / (grad_mag_hist.sum() + 1e-8)
+            features.extend(grad_mag_hist)
             
-            # Özellikleri birleştir
-            features = np.concatenate([hist, grad_hist])
+            # Gradient direction histogramı (64)
+            grad_dir_hist = cv2.calcHist([gradient_direction.astype(np.uint8)], [0], None, [64], [0, 256])
+            grad_dir_hist = grad_dir_hist.flatten() / (grad_dir_hist.sum() + 1e-8)
+            features.extend(grad_dir_hist)
             
-            return features
+            # 3. Laplacian özellikleri (128)
+            laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+            laplacian_hist = cv2.calcHist([laplacian.astype(np.uint8)], [0], None, [128], [0, 256])
+            laplacian_hist = laplacian_hist.flatten() / (laplacian_hist.sum() + 1e-8)
+            features.extend(laplacian_hist)
+            
+            # 4. Gabor filtreleri (256)
+            gabor_features = []
+            angles = [0, 30, 60, 90, 120, 150]
+            frequencies = [0.1, 0.2, 0.3, 0.4, 0.5]
+            
+            for angle in angles:
+                for freq in frequencies:
+                    kernel = cv2.getGaborKernel((31, 31), 5, np.radians(angle), 2*np.pi*freq, 0.5, 0, ktype=cv2.CV_32F)
+                    filtered = cv2.filter2D(gray, cv2.CV_8UC3, kernel)
+                    gabor_hist = cv2.calcHist([filtered], [0], None, [64], [0, 256])
+                    gabor_hist = gabor_hist.flatten() / (gabor_hist.sum() + 1e-8)
+                    gabor_features.extend(gabor_hist)
+            
+            features.extend(gabor_features)
+            
+            # 5. DCT (Discrete Cosine Transform) özellikleri (128)
+            dct = cv2.dct(np.float32(gray))
+            dct_features = dct[:16, :16].flatten()  # İlk 16x16 katsayı
+            dct_features = dct_features / (np.linalg.norm(dct_features) + 1e-8)
+            features.extend(dct_features)
+            
+            # 6. Yerel Binary Pattern (LBP) özellikleri (256)
+            lbp = self._compute_lbp(gray)
+            lbp_hist = cv2.calcHist([lbp], [0], None, [256], [0, 256])
+            lbp_hist = lbp_hist.flatten() / (lbp_hist.sum() + 1e-8)
+            features.extend(lbp_hist)
+            
+            # 7. Haralick özellikleri (14)
+            haralick_features = self._compute_haralick_features(gray)
+            features.extend(haralick_features)
+            
+            # 8. Tamura özellikleri (6)
+            tamura_features = self._compute_tamura_features(gray)
+            features.extend(tamura_features)
+            
+            # 9. Zernike momentleri (25)
+            zernike_features = self._compute_zernike_moments(gray)
+            features.extend(zernike_features)
+            
+            # 10. Renk özellikleri (RGB histogramı) (768)
+            if len(resized.shape) == 3:
+                color_features = self._extract_color_features(resized)
+                features.extend(color_features)
+            else:
+                features.extend([0.0] * 768)  # Gri görüntü için boş renk özellikleri
+            
+            return np.array(features)
             
         except Exception as e:
             logger.error(f"Özellik çıkarma hatası: {e}")
             # Hata durumunda basit özellik vektörü
-            return np.ones(320) * 0.01  # Düşük değerli fallback
+            return np.ones(2048) * 0.01  # Güncellenmiş boyut
+    
+    def _compute_lbp(self, image: np.ndarray) -> np.ndarray:
+        """
+        Yerel Binary Pattern hesapla
+        
+        Args:
+            image: Gri tonlamalı görüntü
+            
+        Returns:
+            LBP görüntüsü
+        """
+        try:
+            lbp = np.zeros_like(image)
+            for i in range(1, image.shape[0]-1):
+                for j in range(1, image.shape[1]-1):
+                    center = image[i, j]
+                    code = 0
+                    # 8 komşu piksel
+                    neighbors = [
+                        image[i-1, j-1], image[i-1, j], image[i-1, j+1],
+                        image[i, j+1], image[i+1, j+1], image[i+1, j],
+                        image[i+1, j-1], image[i, j-1]
+                    ]
+                    for k, neighbor in enumerate(neighbors):
+                        if neighbor >= center:
+                            code |= (1 << k)
+                    lbp[i, j] = code
+            return lbp.astype(np.uint8)
+        except Exception as e:
+            logger.error(f"LBP hesaplama hatası: {e}")
+            return np.zeros_like(image, dtype=np.uint8)
+    
+    def _compute_haralick_features(self, gray_image: np.ndarray) -> np.ndarray:
+        """
+        Haralick doku özelliklerini hesapla
+        
+        Args:
+            gray_image: Gri tonlamalı görüntü
+            
+        Returns:
+            Haralick özellikleri
+        """
+        try:
+            # Görüntüyü küçült (GLCM hesaplaması için)
+            small_image = cv2.resize(gray_image, (64, 64))
+            
+            # GLCM (Gray Level Co-occurrence Matrix) hesapla
+            glcm = self._compute_glcm(small_image)
+            
+            features = []
+            
+            # 1. Contrast (Kontrast)
+            contrast = np.sum(glcm * np.square(np.arange(glcm.shape[0])[:, None] - np.arange(glcm.shape[1])))
+            features.append(contrast)
+            
+            # 2. Dissimilarity (Farklılık)
+            dissimilarity = np.sum(glcm * np.abs(np.arange(glcm.shape[0])[:, None] - np.arange(glcm.shape[1])))
+            features.append(dissimilarity)
+            
+            # 3. Homogeneity (Homojenlik)
+            homogeneity = np.sum(glcm / (1 + np.square(np.arange(glcm.shape[0])[:, None] - np.arange(glcm.shape[1]))))
+            features.append(homogeneity)
+            
+            # 4. Energy (Enerji)
+            energy = np.sum(glcm ** 2)
+            features.append(energy)
+            
+            # 5. Correlation (Korelasyon)
+            mean_i = np.sum(glcm * np.arange(glcm.shape[0])[:, None])
+            mean_j = np.sum(glcm * np.arange(glcm.shape[1]))
+            std_i = np.sqrt(np.sum(glcm * np.square(np.arange(glcm.shape[0])[:, None] - mean_i)))
+            std_j = np.sqrt(np.sum(glcm * np.square(np.arange(glcm.shape[1]) - mean_j)))
+            correlation = np.sum(glcm * (np.arange(glcm.shape[0])[:, None] - mean_i) * (np.arange(glcm.shape[1]) - mean_j)) / (std_i * std_j + 1e-8)
+            features.append(correlation)
+            
+            # 6. ASM (Angular Second Moment)
+            asm = np.sum(glcm ** 2)
+            features.append(asm)
+            
+            # 7. Entropy (Entropi)
+            entropy = -np.sum(glcm * np.log(glcm + 1e-8))
+            features.append(entropy)
+            
+            # 8. Variance (Varyans)
+            variance = np.sum(glcm * np.square(np.arange(glcm.shape[0])[:, None] - mean_i))
+            features.append(variance)
+            
+            # 9. Sum Average
+            sum_avg = np.sum(glcm * (np.arange(glcm.shape[0])[:, None] + np.arange(glcm.shape[1])))
+            features.append(sum_avg)
+            
+            # 10. Sum Variance
+            sum_var = np.sum(glcm * np.square(np.arange(glcm.shape[0])[:, None] + np.arange(glcm.shape[1]) - sum_avg))
+            features.append(sum_var)
+            
+            # 11. Sum Entropy
+            sum_entropy = -np.sum(glcm * np.log(glcm + 1e-8))
+            features.append(sum_entropy)
+            
+            # 12. Difference Variance
+            diff_var = np.sum(glcm * np.square(np.arange(glcm.shape[0])[:, None] - np.arange(glcm.shape[1])))
+            features.append(diff_var)
+            
+            # 13. Difference Entropy
+            diff_entropy = -np.sum(glcm * np.log(glcm + 1e-8))
+            features.append(diff_entropy)
+            
+            # 14. Information Measure of Correlation
+            info_corr = (entropy - sum_entropy) / (entropy + 1e-8)
+            features.append(info_corr)
+            
+            # Normalize features
+            features = np.array(features)
+            features = (features - np.mean(features)) / (np.std(features) + 1e-8)
+            
+            return features
+            
+        except Exception as e:
+            logger.error(f"Haralick özellik hesaplama hatası: {e}")
+            return np.zeros(14)
+    
+    def _compute_glcm(self, gray_image: np.ndarray) -> np.ndarray:
+        """
+        Gray Level Co-occurrence Matrix hesapla
+        
+        Args:
+            gray_image: Gri tonlamalı görüntü
+            
+        Returns:
+            GLCM matrisi
+        """
+        try:
+            # Görüntüyü 8 seviyeye indir
+            levels = 8
+            quantized = (gray_image * levels / 256).astype(np.uint8)
+            
+            # GLCM hesapla (sağa doğru)
+            glcm = np.zeros((levels, levels))
+            h, w = quantized.shape
+            
+            for i in range(h):
+                for j in range(w-1):
+                    glcm[quantized[i, j], quantized[i, j+1]] += 1
+            
+            # Normalize
+            glcm = glcm / (glcm.sum() + 1e-8)
+            
+            return glcm
+            
+        except Exception as e:
+            logger.error(f"GLCM hesaplama hatası: {e}")
+            return np.eye(8) / 8
+    
+    def _compute_tamura_features(self, gray_image: np.ndarray) -> np.ndarray:
+        """
+        Tamura doku özelliklerini hesapla
+        
+        Args:
+            gray_image: Gri tonlamalı görüntü
+            
+        Returns:
+            Tamura özellikleri
+        """
+        try:
+            features = []
+            
+            # 1. Coarseness (Kaba doku)
+            coarseness = self._compute_coarseness(gray_image)
+            features.append(coarseness)
+            
+            # 2. Contrast (Kontrast)
+            contrast = self._compute_contrast(gray_image)
+            features.append(contrast)
+            
+            # 3. Directionality (Yönlülük)
+            directionality = self._compute_directionality(gray_image)
+            features.append(directionality)
+            
+            # 4. Line-likeness (Çizgi benzerliği)
+            line_likeness = self._compute_line_likeness(gray_image)
+            features.append(line_likeness)
+            
+            # 5. Regularity (Düzenlilik)
+            regularity = self._compute_regularity(gray_image)
+            features.append(regularity)
+            
+            # 6. Roughness (Pürüzlülük)
+            roughness = coarseness + contrast
+            features.append(roughness)
+            
+            # Normalize
+            features = np.array(features)
+            features = (features - np.mean(features)) / (np.std(features) + 1e-8)
+            
+            return features
+            
+        except Exception as e:
+            logger.error(f"Tamura özellik hesaplama hatası: {e}")
+            return np.zeros(6)
+    
+    def _compute_coarseness(self, image: np.ndarray) -> float:
+        """Coarseness hesapla"""
+        try:
+            h, w = image.shape
+            best_sizes = np.zeros((h, w))
+            
+            for size in [2, 4, 8, 16]:
+                if size >= min(h, w):
+                    break
+                    
+                # Ortalama hesapla
+                kernel = np.ones((size, size)) / (size * size)
+                avg = cv2.filter2D(image.astype(np.float32), -1, kernel)
+                
+                # Farkları hesapla
+                diff = np.abs(image.astype(np.float32) - avg)
+                best_sizes = np.maximum(best_sizes, diff)
+            
+            return np.mean(best_sizes)
+        except:
+            return 0.0
+    
+    def _compute_contrast(self, image: np.ndarray) -> float:
+        """Contrast hesapla"""
+        try:
+            return np.std(image)
+        except:
+            return 0.0
+    
+    def _compute_directionality(self, image: np.ndarray) -> float:
+        """Directionality hesapla"""
+        try:
+            # Gradient hesapla
+            grad_x = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=3)
+            grad_y = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=3)
+            
+            # Gradient yönü
+            angle = np.arctan2(grad_y, grad_x)
+            
+            # Histogram
+            hist, _ = np.histogram(angle.flatten(), bins=16, range=(-np.pi, np.pi))
+            hist = hist / hist.sum()
+            
+            # Peak sayısı
+            peaks = 0
+            for i in range(1, len(hist)-1):
+                if hist[i] > hist[i-1] and hist[i] > hist[i+1] and hist[i] > 0.1:
+                    peaks += 1
+            
+            return 1.0 - peaks / 16.0
+        except:
+            return 0.0
+    
+    def _compute_line_likeness(self, image: np.ndarray) -> float:
+        """Line-likeness hesapla"""
+        try:
+            # Gradient magnitude
+            grad_x = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=3)
+            grad_y = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=3)
+            magnitude = np.sqrt(grad_x**2 + grad_y**2)
+            
+            return np.mean(magnitude)
+        except:
+            return 0.0
+    
+    def _compute_regularity(self, image: np.ndarray) -> float:
+        """Regularity hesapla"""
+        try:
+            # Basit düzenlilik ölçüsü
+            return 1.0 - np.std(image) / 255.0
+        except:
+            return 0.0
+    
+    def _compute_zernike_moments(self, gray_image: np.ndarray) -> np.ndarray:
+        """
+        Zernike momentlerini hesapla
+        
+        Args:
+            gray_image: Gri tonlamalı görüntü
+            
+        Returns:
+            Zernike momentleri
+        """
+        try:
+            # Görüntüyü küçült
+            small_image = cv2.resize(gray_image, (32, 32))
+            
+            # Dairesel bölge
+            center = 16
+            radius = 15
+            
+            moments = []
+            
+            # Basit Zernike momentleri (5x5 = 25 moment)
+            for n in range(5):
+                for m in range(-n, n+1, 2):
+                    if abs(m) <= n:
+                        moment = self._compute_single_zernike_moment(small_image, n, m, center, radius)
+                        moments.append(abs(moment))
+            
+            # Normalize
+            moments = np.array(moments)
+            if len(moments) > 0:
+                moments = moments / (np.linalg.norm(moments) + 1e-8)
+            
+            # 25 momente tamamla
+            while len(moments) < 25:
+                moments = np.append(moments, 0.0)
+            
+            return moments[:25]
+            
+        except Exception as e:
+            logger.error(f"Zernike moment hesaplama hatası: {e}")
+            return np.zeros(25)
+    
+    def _compute_single_zernike_moment(self, image: np.ndarray, n: int, m: int, center: int, radius: int) -> complex:
+        """Tek Zernike momenti hesapla"""
+        try:
+            moment = 0.0
+            count = 0
+            
+            for i in range(image.shape[0]):
+                for j in range(image.shape[1]):
+                    # Dairesel koordinatlar
+                    x = (i - center) / radius
+                    y = (j - center) / radius
+                    r = np.sqrt(x*x + y*y)
+                    
+                    if r <= 1.0:
+                        theta = np.arctan2(y, x)
+                        
+                        # Zernike polinomu (basitleştirilmiş)
+                        if n == 0:
+                            R = 1.0
+                        elif n == 1:
+                            R = r
+                        elif n == 2:
+                            R = 2*r*r - 1
+                        elif n == 3:
+                            R = 3*r*r*r - 2*r
+                        elif n == 4:
+                            R = 6*r*r*r*r - 6*r*r + 1
+                        else:
+                            R = 0.0
+                        
+                        # Açısal kısım
+                        if m == 0:
+                            angular = 1.0
+                        elif m > 0:
+                            angular = np.cos(m * theta)
+                        else:
+                            angular = np.sin(-m * theta)
+                        
+                        moment += image[i, j] * R * angular
+                        count += 1
+            
+            if count > 0:
+                moment = moment / count
+            
+            return moment
+            
+        except:
+            return 0.0
+    
+    def _extract_color_features(self, color_image: np.ndarray) -> np.ndarray:
+        """
+        Renk özelliklerini çıkar
+        
+        Args:
+            color_image: Renkli görüntü
+            
+        Returns:
+            Renk özellikleri
+        """
+        try:
+            features = []
+            
+            # RGB histogramları (256 x 3 = 768)
+            for channel in range(3):
+                hist = cv2.calcHist([color_image], [channel], None, [256], [0, 256])
+                hist = hist.flatten() / (hist.sum() + 1e-8)
+                features.extend(hist)
+            
+            return np.array(features)
+            
+        except Exception as e:
+            logger.error(f"Renk özellik çıkarma hatası: {e}")
+            return np.zeros(768)
     
     def _simple_feature_based_prediction(self, features: np.ndarray) -> float:
         """
-        Basit özellik tabanlı tahmin
+        Ultra gelişmiş özellik tabanlı tahmin
         
         Args:
             features: Özellik vektörü
@@ -470,48 +1286,111 @@ class DeepfakeDetector:
             Tahmin skoru
         """
         try:
-            if features is not None and len(features) > 0:
-                # Görüntü özelliklerine dayalı tahmin
-                # Histogram özellikleri
-                hist_features = features[:256]
-                hist_variance = np.var(hist_features)
-                hist_entropy = -np.sum(hist_features * np.log(hist_features + 1e-8))
+            if features is not None and len(features) >= 2048:
+                # Özellik gruplarını ayır
+                hist_features = features[:256]  # Histogram
+                grad_mag_features = features[256:384]  # Gradient magnitude
+                grad_dir_features = features[384:448]  # Gradient direction
+                laplacian_features = features[448:576]  # Laplacian
+                gabor_features = features[576:832]  # Gabor
+                dct_features = features[832:960]  # DCT
+                lbp_features = features[960:1216]  # LBP
+                haralick_features = features[1216:1230]  # Haralick
+                tamura_features = features[1230:1236]  # Tamura
+                zernike_features = features[1236:1261]  # Zernike
+                color_features = features[1261:2029]  # Color
                 
-                # Gradient özellikleri
-                grad_features = features[256:]
-                grad_mean = np.mean(grad_features)
-                grad_variance = np.var(grad_features)
-                
-                # Manipülasyon göstergeleri analizi
                 score = 0.0
                 
-                # 1. Histogram analizi (0-0.3)
-                # Düşük entropi genellikle manipülasyon göstergesi
-                hist_score = max(0, 0.3 - hist_entropy * 0.1)
+                # 1. Histogram analizi (0-0.08)
+                hist_entropy = -np.sum(hist_features * np.log(hist_features + 1e-8))
+                hist_variance = np.var(hist_features)
+                hist_score = max(0, 0.08 - hist_entropy * 0.03)
                 score += hist_score
                 
-                # 2. Gradient analizi (0-0.3)
-                # Düşük gradient ortalaması manipülasyon göstergesi
-                grad_score = max(0, 0.3 - grad_mean * 0.5)
-                score += grad_score
+                # 2. Gradient magnitude analizi (0-0.08)
+                grad_mag_mean = np.mean(grad_mag_features)
+                grad_mag_variance = np.var(grad_mag_features)
+                grad_mag_score = max(0, 0.08 - grad_mag_mean * 0.2)
+                score += grad_mag_score
                 
-                # 3. Varyans analizi (0-0.2)
-                # Çok yüksek veya çok düşük varyans şüpheli
-                combined_variance = (hist_variance + grad_variance) / 2
-                if combined_variance > 0.1 or combined_variance < 0.001:
-                    var_score = 0.2
-                else:
-                    var_score = 0.0
-                score += var_score
+                # 3. Gradient direction analizi (0-0.06)
+                grad_dir_entropy = -np.sum(grad_dir_features * np.log(grad_dir_features + 1e-8))
+                grad_dir_score = max(0, 0.06 - grad_dir_entropy * 0.02)
+                score += grad_dir_score
                 
-                # 4. Tutarlılık kontrolü (0-0.2)
-                # Özellikler arası tutarsızlık manipülasyon göstergesi
-                feature_std = np.std(features)
-                consistency_score = min(0.2, feature_std * 2)
+                # 4. Laplacian analizi (0-0.08)
+                laplacian_variance = np.var(laplacian_features)
+                laplacian_score = min(0.08, laplacian_variance * 8)
+                score += laplacian_score
+                
+                # 5. Gabor filtre analizi (0-0.08)
+                gabor_std = np.std(gabor_features)
+                gabor_entropy = -np.sum(gabor_features * np.log(gabor_features + 1e-8))
+                gabor_score = min(0.08, gabor_std * 3 + gabor_entropy * 0.01)
+                score += gabor_score
+                
+                # 6. DCT analizi (0-0.06)
+                dct_energy = np.sum(dct_features**2)
+                dct_variance = np.var(dct_features)
+                dct_score = min(0.06, dct_energy * 0.05 + dct_variance * 2)
+                score += dct_score
+                
+                # 7. LBP analizi (0-0.08)
+                lbp_entropy = -np.sum(lbp_features * np.log(lbp_features + 1e-8))
+                lbp_variance = np.var(lbp_features)
+                lbp_score = max(0, 0.08 - lbp_entropy * 0.03) + min(0.04, lbp_variance * 2)
+                score += lbp_score
+                
+                # 8. Haralick analizi (0-0.08)
+                haralick_contrast = haralick_features[0] if len(haralick_features) > 0 else 0
+                haralick_energy = haralick_features[3] if len(haralick_features) > 3 else 0
+                haralick_score = min(0.08, haralick_contrast * 0.5 + (1 - haralick_energy) * 0.3)
+                score += haralick_score
+                
+                # 9. Tamura analizi (0-0.06)
+                tamura_coarseness = tamura_features[0] if len(tamura_features) > 0 else 0
+                tamura_contrast = tamura_features[1] if len(tamura_features) > 1 else 0
+                tamura_score = min(0.06, tamura_coarseness * 0.3 + tamura_contrast * 0.2)
+                score += tamura_score
+                
+                # 10. Zernike analizi (0-0.06)
+                zernike_mean = np.mean(zernike_features)
+                zernike_variance = np.var(zernike_features)
+                zernike_score = min(0.06, zernike_mean * 0.4 + zernike_variance * 0.3)
+                score += zernike_score
+                
+                # 11. Renk analizi (0-0.08)
+                color_entropy = -np.sum(color_features * np.log(color_features + 1e-8))
+                color_variance = np.var(color_features)
+                color_score = max(0, 0.08 - color_entropy * 0.02) + min(0.04, color_variance * 0.5)
+                score += color_score
+                
+                # 12. Genel tutarlılık kontrolü (0-0.06)
+                feature_correlation = np.corrcoef(features.reshape(-1, 1), np.arange(len(features)))[0, 1]
+                consistency_score = min(0.06, abs(feature_correlation) * 0.15)
                 score += consistency_score
                 
-                # Sonuç normalizasyonu
+                # 13. Anomali tespiti (0-0.06)
+                z_scores = np.abs((features - np.mean(features)) / (np.std(features) + 1e-8))
+                anomaly_score = min(0.06, np.sum(z_scores > 3) / len(features) * 0.3)
+                score += anomaly_score
+                
+                # 14. Doku tutarlılığı (0-0.06)
+                texture_consistency = 1.0 - np.std([hist_variance, grad_mag_variance, laplacian_variance, lbp_variance])
+                texture_score = min(0.06, texture_consistency * 0.3)
+                score += texture_score
+                
+                # Sonuç normalizasyonu ve kalibrasyon
                 final_score = min(0.95, max(0.05, score))
+                
+                # Gelişmiş kalibrasyon
+                if final_score < 0.25:
+                    final_score *= 0.6  # Gerçek fotoğraflar için daha düşük
+                elif final_score > 0.75:
+                    final_score = 0.75 + (final_score - 0.75) * 1.8  # Sahte fotoğraflar için daha yüksek
+                elif final_score > 0.6:
+                    final_score = 0.6 + (final_score - 0.6) * 1.2  # Orta seviye manipülasyonlar için
                 
                 return final_score
             else:
@@ -519,7 +1398,7 @@ class DeepfakeDetector:
                 return 0.5
                 
         except Exception as e:
-            logger.error(f"Basit tahmin hatası: {e}")
+            logger.error(f"Ultra gelişmiş tahmin hatası: {e}")
             return 0.5
     
     def analyze_video(self, video_path: str, max_frames: int = 30) -> Dict:
