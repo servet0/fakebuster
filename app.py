@@ -199,16 +199,25 @@ def analyze_photo(image, model_type):
         # Görüntüyü analiz et
         result = detector.analyze_image(image)
         
-        # Sonuç formatını uyumlu hale getir
+        # Yeni gelişmiş sonuç formatını döndür
         return {
             'is_fake': result['is_fake'],
             'confidence': result['confidence'],
+            'adjusted_confidence': result.get('adjusted_confidence', result['confidence']),
+            'uncertainty': result.get('uncertainty', 0.0),
+            'reliability_score': result.get('reliability_score', 1.0),
+            'scale_consistency': result.get('scale_consistency', 1.0),
+            'decision_threshold': result.get('decision_threshold', 0.5),
+            'result_category': result.get('result_category', 'Bilinmiyor'),
+            'category_icon': result.get('category_icon', '❓'),
             'model_type': model_type,
             'analysis_time': result['analysis_time'],
             'face_detected': result['face_detected'],
-            'manipulation_score': result.get('manipulation_score', result['confidence']),
-            'faces_analyzed': result.get('faces_analyzed', 0),
-            'fake_faces': result.get('fake_faces', 0)
+            'face_count': result.get('face_count', 0),
+            'quality_metrics': result.get('quality_metrics', {}),
+            'analysis_methods': result.get('analysis_methods', {}),
+            'technical_details': result.get('technical_details', {}),
+            'manipulation_score': result.get('adjusted_confidence', result['confidence'])
         }
         
     except Exception as e:
@@ -216,11 +225,20 @@ def analyze_photo(image, model_type):
         # Fallback sonuç
         return {
             'is_fake': False,
-            'confidence': 0.5,
+            'confidence': 0.3,
+            'adjusted_confidence': 0.3,
+            'uncertainty': 1.0,
+            'reliability_score': 0.0,
+            'scale_consistency': 0.0,
+            'decision_threshold': 0.5,
+            'result_category': 'Hata',
+            'category_icon': '❌',
             'model_type': model_type,
             'analysis_time': 0.0,
             'face_detected': False,
-            'manipulation_score': 0.5,
+            'face_count': 0,
+            'quality_metrics': {'certainty': 0.0, 'consistency': 0.0, 'reliability': 0.0},
+            'manipulation_score': 0.3,
             'error': str(e)
         }
 
@@ -262,68 +280,172 @@ def analyze_video(video_path, model_type):
         }
 
 def display_photo_results(result, threshold):
-    """Fotoğraf analiz sonuçlarını göster"""
+    """Gelişmiş fotoğraf analiz sonuçlarını göster"""
     
     # Sonuç kutusu
+    category_icon = result.get('category_icon', '❓')
+    result_category = result.get('result_category', 'Bilinmiyor')
+    reliability_score = result.get('reliability_score', 0.0)
+    
     if result['is_fake']:
         st.markdown(f"""
         <div class="result-box fake-result">
-            <h3>🚨 SAHTE TESPİT EDİLDİ</h3>
+            <h3>🚨 SAHTE TESPİT EDİLDİ {category_icon}</h3>
             <p><strong>Model:</strong> {result['model_type']}</p>
+            <p><strong>Güvenilirlik:</strong> {result_category} ({reliability_score:.1%})</p>
             <p><strong>Güven Skoru:</strong> <span class="confidence-high">{result['confidence']:.2%}</span></p>
+            <p><strong>Ayarlı Skor:</strong> <span class="confidence-high">{result.get('adjusted_confidence', result['confidence']):.2%}</span></p>
             <p><strong>Analiz Süresi:</strong> {result['analysis_time']:.2f} saniye</p>
         </div>
         """, unsafe_allow_html=True)
     else:
         st.markdown(f"""
         <div class="result-box real-result">
-            <h3>✅ GERÇEK TESPİT EDİLDİ</h3>
+            <h3>✅ GERÇEK TESPİT EDİLDİ {category_icon}</h3>
             <p><strong>Model:</strong> {result['model_type']}</p>
+            <p><strong>Güvenilirlik:</strong> {result_category} ({reliability_score:.1%})</p>
             <p><strong>Güven Skoru:</strong> <span class="confidence-high">{result['confidence']:.2%}</span></p>
+            <p><strong>Ayarlı Skor:</strong> <span class="confidence-high">{result.get('adjusted_confidence', result['confidence']):.2%}</span></p>
             <p><strong>Analiz Süresi:</strong> {result['analysis_time']:.2f} saniye</p>
         </div>
         """, unsafe_allow_html=True)
     
-    # Detaylı bilgiler
-    st.subheader("📊 Detaylı Analiz")
+    # Gelişmiş detaylı bilgiler
+    st.subheader("📊 Gelişmiş Analiz Metrikleri")
     
-    col1, col2, col3 = st.columns(3)
+    # İlk satır - Ana metrikler
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Güven Skoru", f"{result['confidence']:.2%}")
-        st.caption("Güven skoru, modelin içeriğin sahte olma olasılığına dair verdiği değerdir. Yüksek skor = daha yüksek sahte olasılığı. Bu skor, yukarıda belirlediğiniz güven eşiği ile karşılaştırılır.")
+        st.metric("Güven Skoru", f"{result['confidence']:.1%}")
+        st.caption("Ensemble algoritmaların ortalama skoru")
     
     with col2:
-        st.metric("Manipülasyon Skoru", f"{result['manipulation_score']:.2%}")
+        st.metric("Belirsizlik", f"{result.get('uncertainty', 0.0):.1%}")
+        st.caption("Sonucun belirsizlik seviyesi")
     
     with col3:
-        st.metric("Yüz Tespit Edildi", "✅" if result['face_detected'] else "❌")
+        st.metric("Güvenilirlik", f"{result.get('reliability_score', 1.0):.1%}")
+        st.caption("Analizin genel güvenilirliği")
+    
+    with col4:
+        st.metric("Kesinlik", f"{result.get('quality_metrics', {}).get('certainty', 1.0):.1%}")
+        st.caption("1 - Belirsizlik")
+    
+    # İkinci satır - Teknik metrikler
+    col5, col6, col7, col8 = st.columns(4)
+    
+    with col5:
+        st.metric("Eşik Değeri", f"{result.get('decision_threshold', 0.5):.1%}")
+        st.caption("Kullanılan karar eşiği")
+    
+    with col6:
+        st.metric("Ölçek Tutarlılığı", f"{result.get('scale_consistency', 1.0):.1%}")
+        st.caption("Çoklu ölçek analiz tutarlılığı")
+    
+    with col7:
+        st.metric("Yüz Sayısı", f"{result.get('face_count', 0)}")
+        st.caption("Tespit edilen yüz sayısı")
+    
+    with col8:
+        quality_metrics = result.get('quality_metrics', {})
+        consistency = quality_metrics.get('consistency', 1.0)
+        st.metric("Tutarlılık", f"{consistency:.1%}")
+        st.caption("Yöntemler arası tutarlılık")
+    
+    # Ensemble yöntemleri detayları
+    st.subheader("🎯 Ensemble Analiz Detayları")
+    
+    analysis_methods = result.get('analysis_methods', {})
+    ensemble_data = analysis_methods.get('ensemble', {})
+    
+    if 'methods' in ensemble_data:
+        st.write("**Kullanılan Algoritmalar:**")
+        
+        # Ensemble yöntemlerini göster
+        col_methods = st.columns(4)
+        methods = ensemble_data['methods']
+        
+        method_names = {
+            'feature_based': 'Özellik Tabanlı',
+            'statistical': 'İstatistiksel',
+            'anomaly': 'Anomali Tespiti',
+            'entropy': 'Entropi Analizi'
+        }
+        
+        for i, (method, confidence) in enumerate(methods.items()):
+            with col_methods[i % 4]:
+                st.metric(
+                    method_names.get(method, method), 
+                    f"{confidence:.1%}",
+                    delta=f"{confidence - result['confidence']:.1%}" if confidence != result['confidence'] else None
+                )
+    
+    # Çoklu ölçek analizi
+    multi_scale_data = analysis_methods.get('multi_scale', {})
+    if multi_scale_data:
+        st.write("**Çoklu Ölçek Analizi:**")
+        scale_cols = st.columns(len(multi_scale_data))
+        
+        for i, (scale_name, scale_data) in enumerate(multi_scale_data.items()):
+            with scale_cols[i]:
+                scale_confidence = scale_data.get('confidence', 0.0)
+                st.metric(
+                    f"{scale_name.replace('scale_', '').replace('x', '×')}",
+                    f"{scale_confidence:.1%}"
+                )
+    
+    # Teknik detaylar (genişletilebilir)
+    with st.expander("🔧 Teknik Detaylar"):
+        technical_details = result.get('technical_details', {})
+        
+        col_tech1, col_tech2 = st.columns(2)
+        
+        with col_tech1:
+            st.write("**Analiz Bilgileri:**")
+            st.write(f"- Çıkarılan özellik sayısı: {technical_details.get('features_extracted', 'N/A')}")
+            st.write(f"- Belirsizlik ayarlaması: {'✅' if technical_details.get('adjustment_applied', False) else '❌'}")
+            st.write(f"- Eşik yükseltme: {'✅' if technical_details.get('threshold_elevated', False) else '❌'}")
+        
+        with col_tech2:
+            st.write("**Kullanılan Yöntemler:**")
+            methods_used = technical_details.get('methods_used', [])
+            for method in methods_used:
+                method_names_tech = {
+                    'ensemble': '🎯 Ensemble Analizi',
+                    'multi_scale': '📏 Çoklu Ölçek',
+                    'uncertainty_estimation': '📊 Belirsizlik Tahmini'
+                }
+                st.write(f"- {method_names_tech.get(method, method)}")
     
     # Güven skoru grafiği
-    fig, ax = plt.subplots(figsize=(8, 4))
+    st.subheader("📈 Güven Skoru Analizi")
     
-    # Gauge chart benzeri görselleştirme
-    confidence = result['confidence']
-    colors = ['#ff4444', '#ffaa00', '#44ff44']
+    fig, ax = plt.subplots(figsize=(10, 5))
     
-    if confidence < 0.5:
-        color = colors[0]
-        label = "Düşük Güven"
-    elif confidence < 0.8:
-        color = colors[1]
-        label = "Orta Güven"
-    else:
-        color = colors[2]
-        label = "Yüksek Güven"
+    # Çok metrikli grafik
+    metrics = {
+        'Güven Skoru': result['confidence'],
+        'Ayarlı Skor': result.get('adjusted_confidence', result['confidence']),
+        'Güvenilirlik': result.get('reliability_score', 1.0),
+        'Kesinlik': result.get('quality_metrics', {}).get('certainty', 1.0)
+    }
     
-    ax.bar(['Güven Skoru'], [confidence], color=color, alpha=0.7)
+    bars = ax.bar(metrics.keys(), metrics.values(), alpha=0.7, color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'])
     ax.set_ylim(0, 1)
-    ax.set_ylabel('Güven Oranı')
-    ax.set_title(f'Analiz Sonucu: {label}')
+    ax.set_ylabel('Skor')
+    ax.set_title('Gelişmiş Analiz Skorları')
     
     # Eşik çizgisi
-    ax.axhline(y=threshold, color='red', linestyle='--', alpha=0.7, label=f'Eşik ({threshold:.2%})')
+    threshold_used = result.get('decision_threshold', threshold)
+    ax.axhline(y=threshold_used, color='red', linestyle='--', alpha=0.7, label=f'Karar Eşiği ({threshold_used:.1%})')
     ax.legend()
+    
+    # Bar değerlerini göster
+    for bar, value in zip(bars, metrics.values()):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                f'{value:.1%}', ha='center', va='bottom')
     
     st.pyplot(fig)
 

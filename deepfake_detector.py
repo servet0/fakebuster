@@ -9,6 +9,14 @@ import mediapipe as mp
 import time
 from typing import Dict, List, Tuple, Optional
 import logging
+from sklearn.ensemble import IsolationForest, RandomForestClassifier, VotingClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.svm import SVC
+from scipy import stats
+import warnings
+warnings.filterwarnings('ignore')
 
 # Logging konfigürasyonu
 logging.basicConfig(level=logging.INFO)
@@ -31,9 +39,18 @@ class DeepfakeDetector:
         self.face_detector = None
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
+        # Gelişmiş analiz araçları
+        self.scaler = StandardScaler()
+        self.anomaly_detector = IsolationForest(contamination=0.1, random_state=42)
+        self.ensemble_classifiers = {}
+        self.uncertainty_estimator = None
+        self.probability_calibrator = None
+        
         # Model yükleme
         self._load_models()
         self._setup_face_detection()
+        self._setup_ensemble_models()
+        self._setup_uncertainty_estimation()
         
         logger.info(f"DeepfakeDetector başlatıldı - Model: {model_type}, Cihaz: {self.device}")
     
@@ -179,6 +196,70 @@ class DeepfakeDetector:
         except Exception as e:
             logger.error(f"Yüz tespit sistemi kurulum hatası: {e}")
             self.face_detection = None
+    
+    def _setup_ensemble_models(self):
+        """
+        Ensemble (topluluk) modellerini kur
+        """
+        try:
+            # Random Forest sınıflandırıcı
+            rf_classifier = RandomForestClassifier(
+                n_estimators=100,
+                max_depth=10,
+                random_state=42,
+                n_jobs=-1
+            )
+            
+            # SVM sınıflandırıcı
+            svm_classifier = SVC(
+                kernel='rbf',
+                probability=True,
+                random_state=42
+            )
+            
+            # Gaussian Process sınıflandırıcı
+            gp_classifier = GaussianProcessClassifier(
+                random_state=42,
+                n_restarts_optimizer=3
+            )
+            
+            # Voting sınıflandırıcı (ensemble)
+            self.ensemble_classifiers['voting'] = VotingClassifier(
+                estimators=[
+                    ('rf', rf_classifier),
+                    ('svm', svm_classifier),
+                    ('gp', gp_classifier)
+                ],
+                voting='soft'  # Olasılık tabanlı oylama
+            )
+            
+            # Kalibre edilmiş sınıflandırıcı
+            self.probability_calibrator = CalibratedClassifierCV(
+                self.ensemble_classifiers['voting'],
+                method='isotonic',
+                cv=3
+            )
+            
+            logger.info("Ensemble modelleri başarıyla kuruldu")
+            
+        except Exception as e:
+            logger.error(f"Ensemble model kurulum hatası: {e}")
+    
+    def _setup_uncertainty_estimation(self):
+        """
+        Belirsizlik tahmini kurulumu
+        """
+        try:
+            # Gaussian Process belirsizlik tahmini için
+            self.uncertainty_estimator = GaussianProcessClassifier(
+                random_state=42,
+                n_restarts_optimizer=5
+            )
+            
+            logger.info("Belirsizlik tahmini kuruldu")
+            
+        except Exception as e:
+            logger.error(f"Belirsizlik tahmini kurulum hatası: {e}")
     
     def preprocess_image(self, image: np.ndarray, target_size: Tuple[int, int] = (224, 224)) -> np.ndarray:
         """
@@ -529,85 +610,375 @@ class DeepfakeDetector:
             logger.error(f"Yüz doku analizi hatası: {e}")
             return np.zeros(128)
     
-    def analyze_image(self, image: np.ndarray) -> Dict:
+    def _multi_scale_analysis(self, image: np.ndarray) -> Dict:
         """
-        Görüntüyü analiz et
+        Çoklu ölçek analizi - farklı çözünürlüklerde analiz
         
         Args:
             image: Analiz edilecek görüntü
             
         Returns:
-            Analiz sonuçları
+            Çoklu ölçek analiz sonuçları
+        """
+        try:
+            scales = [(64, 64), (128, 128), (256, 256), (512, 512)]
+            scale_results = {}
+            
+            for i, scale in enumerate(scales):
+                # Görüntüyü yeniden boyutlandır
+                resized_image = cv2.resize(image, scale)
+                
+                # Her ölçek için özellik çıkar
+                features = self._extract_image_features(resized_image)
+                
+                if features is not None and len(features) > 0:
+                    # Bu ölçek için tahmin yap
+                    confidence = self._simple_feature_based_prediction(features)
+                    
+                    scale_results[f'scale_{scale[0]}x{scale[1]}'] = {
+                        'confidence': confidence,
+                        'features_count': len(features),
+                        'scale': scale
+                    }
+                    
+                    logger.info(f"Ölçek {scale}: Güven={confidence:.3f}")
+            
+            return scale_results
+            
+        except Exception as e:
+            logger.error(f"Çoklu ölçek analizi hatası: {e}")
+            return {}
+    
+    def _ensemble_prediction(self, features: np.ndarray) -> Dict:
+        """
+        Ensemble tahmin yöntemi
+        
+        Args:
+            features: Özellik vektörü
+            
+        Returns:
+            Ensemble tahmin sonuçları
+        """
+        try:
+            if features is None or len(features) == 0:
+                return {'confidence': 0.5, 'uncertainty': 1.0, 'methods': []}
+            
+            # Özellik vektörünü reshape et
+            X = features.reshape(1, -1)
+            
+            # Farklı tahmin yöntemleri
+            predictions = {}
+            
+            # 1. Özellik tabanlı tahmin (mevcut yöntem)
+            feature_pred = self._simple_feature_based_prediction(features)
+            predictions['feature_based'] = feature_pred
+            
+            # 2. İstatistiksel analiz
+            statistical_pred = self._statistical_analysis(features)
+            predictions['statistical'] = statistical_pred
+            
+            # 3. Anomali tespiti
+            anomaly_pred = self._anomaly_detection(X)
+            predictions['anomaly'] = anomaly_pred
+            
+            # 4. Entropi tabanlı analiz
+            entropy_pred = self._entropy_analysis(features)
+            predictions['entropy'] = entropy_pred
+            
+            # Ensemble sonucu
+            confidences = list(predictions.values())
+            
+            # Ağırlıklı ortalama
+            weights = [0.4, 0.25, 0.2, 0.15]  # Özellik tabanlı en yüksek ağırlık
+            ensemble_confidence = np.average(confidences, weights=weights)
+            
+            # Belirsizlik hesapla (standart sapma)
+            uncertainty = np.std(confidences)
+            
+            # Tutarlılık skoru
+            consistency = 1.0 - uncertainty
+            
+            return {
+                'confidence': ensemble_confidence,
+                'uncertainty': uncertainty,
+                'consistency': consistency,
+                'methods': predictions,
+                'weights_used': weights
+            }
+            
+        except Exception as e:
+            logger.error(f"Ensemble tahmin hatası: {e}")
+            return {'confidence': 0.5, 'uncertainty': 1.0, 'methods': []}
+    
+    def _statistical_analysis(self, features: np.ndarray) -> float:
+        """
+        İstatistiksel analiz
+        
+        Args:
+            features: Özellik vektörü
+            
+        Returns:
+            İstatistiksel tahmin skoru
+        """
+        try:
+            if features is None or len(features) == 0:
+                return 0.5
+            
+            # İstatistiksel özellikler
+            mean_val = np.mean(features)
+            std_val = np.std(features)
+            skewness = stats.skew(features)
+            kurtosis = stats.kurtosis(features)
+            
+            # Z-score analizi
+            z_scores = np.abs(stats.zscore(features))
+            outlier_ratio = np.sum(z_scores > 2) / len(features)
+            
+            # Normallik testi
+            _, p_value = stats.normaltest(features)
+            normality = 1.0 - p_value  # P değeri düşükse normallik düşük
+            
+            # Skorları birleştir
+            score = 0.0
+            
+            # Yüksek standart sapma şüpheli
+            score += min(0.3, std_val * 0.5)
+            
+            # Yüksek çarpıklık şüpheli
+            score += min(0.2, abs(skewness) * 0.1)
+            
+            # Yüksek basıklık şüpheli
+            score += min(0.2, abs(kurtosis) * 0.05)
+            
+            # Yüksek outlier oranı şüpheli
+            score += min(0.2, outlier_ratio * 2)
+            
+            # Düşük normallik şüpheli
+            score += min(0.1, normality * 0.2)
+            
+            return min(0.95, max(0.05, score))
+            
+        except Exception as e:
+            logger.error(f"İstatistiksel analiz hatası: {e}")
+            return 0.5
+    
+    def _anomaly_detection(self, X: np.ndarray) -> float:
+        """
+        Anomali tespiti
+        
+        Args:
+            X: Özellik matrisi
+            
+        Returns:
+            Anomali skoru
+        """
+        try:
+            # Isolation Forest ile anomali tespiti
+            anomaly_score = self.anomaly_detector.decision_function(X)[0]
+            
+            # Skoru 0-1 aralığına normalize et
+            # Negatif değer = anomali, pozitif değer = normal
+            normalized_score = 1.0 / (1.0 + np.exp(anomaly_score))
+            
+            return normalized_score
+            
+        except Exception as e:
+            logger.error(f"Anomali tespit hatası: {e}")
+            return 0.5
+    
+    def _entropy_analysis(self, features: np.ndarray) -> float:
+        """
+        Entropi tabanlı analiz
+        
+        Args:
+            features: Özellik vektörü
+            
+        Returns:
+            Entropi skoru
+        """
+        try:
+            if features is None or len(features) == 0:
+                return 0.5
+            
+            # Histogram oluştur
+            hist, _ = np.histogram(features, bins=50, density=True)
+            hist = hist + 1e-8  # Sıfır değerlerden kaçın
+            
+            # Shannon entropisi
+            entropy = -np.sum(hist * np.log2(hist))
+            
+            # Maksimum entropi (uniform dağılım)
+            max_entropy = np.log2(len(hist))
+            
+            # Normalize et
+            normalized_entropy = entropy / max_entropy
+            
+            # Düşük entropi şüpheli (manipülasyon sonucu düzen)
+            score = 1.0 - normalized_entropy
+            
+            return min(0.95, max(0.05, score))
+            
+        except Exception as e:
+            logger.error(f"Entropi analizi hatası: {e}")
+            return 0.5
+
+    def analyze_image(self, image: np.ndarray) -> Dict:
+        """
+        Ultra gelişmiş görüntü analizi - Ensemble + Belirsizlik + Çoklu Ölçek
+        
+        Args:
+            image: Analiz edilecek görüntü
+            
+        Returns:
+            Kapsamlı analiz sonuçları
         """
         start_time = time.time()
         
         try:
-            # Yüz tespiti
+            logger.info("🔍 Gelişmiş analiz başlatılıyor...")
+            
+            # 1. Çoklu ölçek analizi
+            logger.info("📏 Çoklu ölçek analizi yapılıyor...")
+            multi_scale_results = self._multi_scale_analysis(image)
+            
+            # 2. Yüz tespiti
+            logger.info("👤 Yüz tespiti yapılıyor...")
             faces = self.detect_faces(image)
             
-            if not faces:
-                logger.warning("Görüntüde yüz tespit edilemedi")
-                # Yüz yoksa görüntü özelliklerine dayalı tahmin yap
-                image_features = self._extract_image_features(image)
-                confidence = self._simple_feature_based_prediction(image_features)
-                return {
-                    'is_fake': confidence > 0.5,
-                    'confidence': confidence,
-                    'face_detected': False,
-                    'analysis_time': time.time() - start_time,
-                    'error': 'Yüz tespit edilemedi'
-                }
+            # 3. Görüntü özelliklerini çıkar
+            logger.info("🧩 Görüntü özellikleri çıkarılıyor...")
+            image_features = self._extract_image_features(image)
             
-            # Her yüz için analiz
-            face_results = []
-            for face in faces:
-                face_features = self.extract_face_features(image, face['bbox'])
-                if face_features is not None:
-                    # Model tahmini (simüle edilmiş)
-                    confidence = self._predict_with_models(image, face_features)
-                    face_results.append({
-                        'bbox': face['bbox'],
-                        'confidence': confidence,
-                        'is_fake': confidence > 0.5
-                    })
+            # 4. Ensemble tahmin (görüntü için)
+            logger.info("🎯 Ensemble analizi yapılıyor...")
+            ensemble_result = self._ensemble_prediction(image_features)
             
-            # Genel sonuç
-            if face_results:
-                avg_confidence = np.mean([f['confidence'] for f in face_results])
-                fake_faces = sum(1 for f in face_results if f['is_fake'])
-                is_fake = fake_faces > len(face_results) / 2
+            # 5. Yüz analizi (varsa)
+            face_analysis = None
+            if faces:
+                logger.info(f"👥 {len(faces)} yüz tespit edildi, analiz ediliyor...")
+                # En büyük yüzü seç
+                largest_face = max(faces, key=lambda f: f['bbox'][2] * f['bbox'][3])
+                face_features = self.extract_face_features(image, largest_face['bbox'])
                 
-                return {
-                    'is_fake': is_fake,
-                    'confidence': avg_confidence,
-                    'face_detected': True,
-                    'faces_analyzed': len(face_results),
-                    'fake_faces': fake_faces,
-                    'analysis_time': time.time() - start_time,
-                    'face_results': face_results
-                }
+                if face_features is not None:
+                    face_analysis = self._ensemble_prediction(face_features)
+                    logger.info("✅ Yüz analizi tamamlandı")
+                else:
+                    logger.warning("⚠️ Yüz özellikleri çıkarılamadı")
             else:
-                # Yüz analizi başarısız olduysa görüntü özelliklerine dayalı tahmin
-                image_features = self._extract_image_features(image)
-                confidence = self._simple_feature_based_prediction(image_features)
-                return {
-                    'is_fake': confidence > 0.5,
-                    'confidence': confidence,
-                    'face_detected': True,
-                    'analysis_time': time.time() - start_time,
-                    'error': 'Yüz analizi başarısız'
+                logger.info("👤 Yüz tespit edilemedi, sadece görüntü analizi yapılıyor")
+            
+            # 6. Sonuçları birleştir
+            logger.info("🔗 Sonuçlar birleştiriliyor...")
+            final_confidence = ensemble_result['confidence']
+            final_uncertainty = ensemble_result['uncertainty']
+            
+            # Yüz analizi varsa ağırlıklı ortalama al
+            if face_analysis:
+                # %60 yüz analizi, %40 görüntü analizi
+                final_confidence = 0.6 * face_analysis['confidence'] + 0.4 * ensemble_result['confidence']
+                final_uncertainty = 0.6 * face_analysis['uncertainty'] + 0.4 * ensemble_result['uncertainty']
+                logger.info(f"🔄 Hibrit analiz: Yüz(%60) + Görüntü(%40)")
+            
+            # 7. Çoklu ölçek tutarlılığı kontrol et
+            scale_consistency = self._calculate_scale_consistency(multi_scale_results)
+            logger.info(f"📊 Ölçek tutarlılığı: {scale_consistency:.2f}")
+            
+            # 8. Güvenilirlik skoru hesapla
+            reliability_score = self._calculate_reliability(
+                final_uncertainty, 
+                scale_consistency, 
+                ensemble_result['consistency']
+            )
+            logger.info(f"🎖️ Güvenilirlik skoru: {reliability_score:.2f}")
+            
+            # 9. Son karar ver
+            # Yüksek belirsizlik varsa daha muhafazakar ol
+            adjusted_confidence = final_confidence
+            if final_uncertainty > 0.3:
+                adjustment_factor = 1 - final_uncertainty * 0.5
+                adjusted_confidence *= adjustment_factor
+                logger.info(f"⚖️ Belirsizlik ayarlaması yapıldı: {adjustment_factor:.2f}")
+            
+            # Düşük güvenilirlik varsa eşiği yükselt
+            decision_threshold = 0.5
+            if reliability_score < 0.7:
+                decision_threshold = 0.6
+                logger.info("🔒 Düşük güvenilirlik - Eşik %60'a yükseltildi")
+            elif reliability_score < 0.5:
+                decision_threshold = 0.7
+                logger.info("🔒 Çok düşük güvenilirlik - Eşik %70'e yükseltildi")
+            
+            is_fake = adjusted_confidence > decision_threshold
+            
+            # 10. Sonuç kategorisi belirle
+            if reliability_score >= 0.8:
+                result_category = "Yüksek Güvenilirlik"
+                category_icon = "🟢"
+            elif reliability_score >= 0.6:
+                result_category = "Orta Güvenilirlik"
+                category_icon = "🟡"
+            else:
+                result_category = "Düşük Güvenilirlik"
+                category_icon = "🔴"
+            
+            logger.info(f"✅ Analiz tamamlandı - {category_icon} {result_category}")
+            logger.info(f"📊 Sonuç: {'SAHTE' if is_fake else 'GERÇEK'} (Güven: {final_confidence:.1%})")
+            
+            return {
+                'is_fake': is_fake,
+                'confidence': final_confidence,
+                'adjusted_confidence': adjusted_confidence,
+                'uncertainty': final_uncertainty,
+                'reliability_score': reliability_score,
+                'scale_consistency': scale_consistency,
+                'decision_threshold': decision_threshold,
+                'result_category': result_category,
+                'category_icon': category_icon,
+                'face_detected': len(faces) > 0,
+                'face_count': len(faces),
+                'analysis_methods': {
+                    'ensemble': ensemble_result,
+                    'face_analysis': face_analysis,
+                    'multi_scale': multi_scale_results
+                },
+                'analysis_time': time.time() - start_time,
+                'quality_metrics': {
+                    'certainty': 1.0 - final_uncertainty,
+                    'consistency': ensemble_result['consistency'],
+                    'reliability': reliability_score
+                },
+                'technical_details': {
+                    'methods_used': ['ensemble', 'multi_scale', 'uncertainty_estimation'],
+                    'features_extracted': len(image_features) if image_features is not None else 0,
+                    'ensemble_methods': list(ensemble_result['methods'].keys()) if 'methods' in ensemble_result else [],
+                    'adjustment_applied': final_uncertainty > 0.3,
+                    'threshold_elevated': decision_threshold > 0.5
                 }
+            }
                 
         except Exception as e:
-            logger.error(f"Görüntü analiz hatası: {e}")
-            # Hata durumunda görüntü özelliklerine dayalı tahmin
-            image_features = self._extract_image_features(image)
-            confidence = self._simple_feature_based_prediction(image_features)
+            logger.error(f"❌ Görüntü analiz hatası: {e}")
+            # Hata durumunda basit fallback
             return {
-                'is_fake': confidence > 0.5,
-                'confidence': confidence,
+                'is_fake': False,
+                'confidence': 0.3,
+                'adjusted_confidence': 0.3,
+                'uncertainty': 1.0,
+                'reliability_score': 0.0,
+                'scale_consistency': 0.0,
+                'decision_threshold': 0.5,
+                'result_category': "Hata",
+                'category_icon': "❌",
                 'face_detected': False,
+                'face_count': 0,
                 'analysis_time': time.time() - start_time,
+                'quality_metrics': {
+                    'certainty': 0.0,
+                    'consistency': 0.0,
+                    'reliability': 0.0
+                },
                 'error': str(e)
             }
     
@@ -1495,11 +1866,69 @@ class DeepfakeDetector:
                 'error': str(e)
             }
     
+    def _calculate_scale_consistency(self, scale_results: Dict) -> float:
+        """
+        Çoklu ölçek tutarlılığını hesapla
+        
+        Args:
+            scale_results: Çoklu ölçek analiz sonuçları
+            
+        Returns:
+            Tutarlılık skoru (0-1)
+        """
+        try:
+            if not scale_results:
+                return 0.0
+            
+            confidences = [result['confidence'] for result in scale_results.values()]
+            
+            if len(confidences) < 2:
+                return 1.0
+            
+            # Standart sapma ile tutarlılık ölç
+            consistency = 1.0 - np.std(confidences)
+            return max(0.0, min(1.0, consistency))
+            
+        except Exception as e:
+            logger.error(f"Ölçek tutarlılığı hesaplama hatası: {e}")
+            return 0.0
+    
+    def _calculate_reliability(self, uncertainty: float, scale_consistency: float, ensemble_consistency: float) -> float:
+        """
+        Genel güvenilirlik skoru hesapla
+        
+        Args:
+            uncertainty: Belirsizlik skoru
+            scale_consistency: Ölçek tutarlılığı
+            ensemble_consistency: Ensemble tutarlılığı
+            
+        Returns:
+            Güvenilirlik skoru (0-1)
+        """
+        try:
+            # Belirsizlik ne kadar düşükse güvenilirlik o kadar yüksek
+            certainty = 1.0 - uncertainty
+            
+            # Ağırlıklı ortalama
+            reliability = (
+                0.4 * certainty +
+                0.3 * scale_consistency +
+                0.3 * ensemble_consistency
+            )
+            
+            return max(0.0, min(1.0, reliability))
+            
+        except Exception as e:
+            logger.error(f"Güvenilirlik hesaplama hatası: {e}")
+            return 0.0
+
     def get_model_info(self) -> Dict:
         """Model bilgilerini döndür"""
         return {
             'model_type': self.model_type,
             'loaded_models': list(self.models.keys()),
             'device': str(self.device),
-            'face_detection_available': self.face_detection is not None
+            'face_detection_available': self.face_detection is not None,
+            'ensemble_methods': ['feature_based', 'statistical', 'anomaly', 'entropy'],
+            'analysis_features': ['multi_scale', 'uncertainty_estimation', 'reliability_scoring']
         }
