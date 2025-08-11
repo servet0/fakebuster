@@ -1,5 +1,7 @@
 # 🕵️‍♂️ FakeBuster - AI Deepfake Detection Tool
 
+https://github.com/user-attachments/assets/2b32631a-37e5-4e2f-b9d3-edd3f5ab86b7
+
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.27.0-red.svg)](https://streamlit.io)
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-2.13.0-orange.svg)](https://tensorflow.org)
