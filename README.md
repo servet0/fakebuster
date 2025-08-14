@@ -7,58 +7,58 @@ https://github.com/user-attachments/assets/2b32631a-37e5-4e2f-b9d3-edd3f5ab86b7
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-2.13.0-orange.svg)](https://tensorflow.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**FakeBuster**, deepfake ve AI tarafından oluşturulan medya içeriklerini tespit etmek için geliştirilmiş **ultra gelişmiş**, **yerel çalışan** bir prototip aracıdır. Fotoğraf ve video analizi için **bilimsel olarak güvenilir** sonuçlar sunar.
+**FakeBuster** is an **ultra-advanced**, **locally running** prototype tool developed to detect deepfake and AI-generated media content. It provides **scientifically reliable** results for photo and video analysis.
 
-## 🎯 Özellikler
+## 🎯 Features
 
-### 🔍 **Ultra Gelişmiş Analiz Sistemi**
-- 🎯 **Ensemble Yöntemler**: 4 farklı algoritmanın birleşimi
-- 📊 **Belirsizlik Tahmini**: Gaussian Process ile güvenilirlik ölçümü
-- 📏 **Çoklu Ölçek Analizi**: Farklı çözünürlüklerde manipülasyon tespiti
-- ⏱️ **Temporal Tutarlılık**: Video frame'leri arası uyum kontrolü
-- 🎛️ **Dinamik Eşik Belirleme**: Güvenilirlik bazlı adaptif karar verme
+### 🔍 **Ultra-Advanced Analysis System**
+- 🎯 **Ensemble Methods**: Combination of 4 different algorithms
+- 📊 **Uncertainty Estimation**: Reliability measurement with Gaussian Process
+- 📏 **Multi-Scale Analysis**: Manipulation detection at different resolutions
+- ⏱️ **Temporal Consistency**: Consistency check between video frames
+- 🎛️ **Dynamic Threshold Determination**: Adaptive decision making based on reliability
 
-### 🖼️ **Fotoğraf Analizi**
-- **2048 Gelişmiş Özellik Çıkarımı**:
-  - Histogram, Gradient, Laplacian analizi
-  - Gabor filtreleri, DCT, LBP
-  - Haralick, Tamura, Zernike momentleri
-  - Renk dağılım analizi
+### 🖼️ **Photo Analysis**
+- **2048 Advanced Feature Extraction**:
+  - Histogram, Gradient, Laplacian analysis
+  - Gabor filters, DCT, LBP
+  - Haralick, Tamura, Zernike moments
+  - Color distribution analysis
 
-- **Ultra Gelişmiş Yüz Analizi**:
-  - 2048 özellikli yüz analizi
-  - Bölgesel asimetri kontrolü
-  - Edge pattern analizi
-  - Texture tutarlılık kontrolü
+- **Ultra-Advanced Face Analysis**:
+  - 2048-feature face analysis
+  - Regional asymmetry control
+  - Edge pattern analysis
+  - Texture consistency control
 
-### 🎬 **Video Analizi**
-- **Frame-by-Frame Ensemble Analizi**
-- **Temporal Tutarlılık Kontrolü**
-- **Video Kararlılık Analizi**
-- **Rolling Average Trend Analizi**
-- **Frame Uyum Skoru**
+### 🎬 **Video Analysis**
+- **Frame-by-Frame Ensemble Analysis**
+- **Temporal Consistency Control**
+- **Video Stability Analysis**
+- **Rolling Average Trend Analysis**
+- **Frame Agreement Score**
 
-### 📊 **Kapsamlı Görselleştirme**
-- **6 Farklı Analiz Grafiği** (video için)
-- **Ensemble Metrik Gösterimi**
-- **Belirsizlik & Güvenilirlik Analizi**
-- **Detaylı Frame Tablosu**
-- **Real-time Analiz Progress**
+### 📊 **Comprehensive Visualization**
+- **6 Different Analysis Charts** (for video)
+- **Ensemble Metric Display**
+- **Uncertainty & Reliability Analysis**
+- **Detailed Frame Table**
+- **Real-time Analysis Progress**
 
-## 🚀 Kurulum
+## 🚀 Installation
 
-### 1. Projeyi Klonlayın
+### 1. Clone the Project
 ```bash
-git clone https://github.com/yourusername/fakebuster.git
+git clone https://github.com/servet0/fakebuster.git
 cd fakebuster
 ```
 
-### 2. Sanal Ortam Oluşturun
+### 2. Create Virtual Environment
 ```bash
 python -m venv venv
 ```
 
-### 3. Sanal Ortamı Aktifleştirin
+### 3. Activate Virtual Environment
 ```bash
 # Windows
 venv\Scripts\activate
@@ -67,14 +67,14 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-### 4. Gerekli Kütüphaneleri Yükleyin
+### 4. Install Required Libraries
 ```bash
 pip install -r requirements.txt
 ```
 
-## 📋 Gereksinimler
+## 📋 Requirements
 
-### 🐍 Ana Kütüphaneler
+### 🐍 Core Libraries
 ```
 streamlit==1.27.0
 opencv-python==4.8.1.78
@@ -86,7 +86,7 @@ scikit-learn==1.3.0
 scipy==1.11.3
 ```
 
-### 📊 Görselleştirme & Analiz
+### 📊 Visualization & Analysis
 ```
 matplotlib==3.7.2
 seaborn==0.12.2
@@ -95,129 +95,129 @@ mediapipe==0.10.3
 pandas
 ```
 
-## 🎮 Kullanım
+## 🎮 Usage
 
-### 1. Uygulamayı Başlatın
+### 1. Start the Application
 ```bash
 streamlit run app.py
 ```
 
-### 2. Web Arayüzüne Erişin
-Tarayıcınızda `http://localhost:8501` adresine gidin.
+### 2. Access Web Interface
+Go to `http://localhost:8501` in your browser.
 
-### 3. Analiz Seçin
-- **📸 Fotoğraf Analizi**: JPG, PNG, JPEG formatları desteklenir
-- **🎬 Video Analizi**: MP4, AVI, MOV formatları desteklenir
+### 3. Select Analysis
+- **📸 Photo Analysis**: JPG, PNG, JPEG formats supported
+- **🎬 Video Analysis**: MP4, AVI, MOV formats supported
 
-### 4. Model Seçin
-- **Fotoğraf için**: DeepFaceLab, FaceForensics++, GANDetector
-- **Video için**: XceptionNet, DFDNet
+### 4. Choose Model
+- **For Photos**: DeepFaceLab, FaceForensics++, GANDetector
+- **For Videos**: XceptionNet, DFDNet
 
-### 5. Sonuçları İnceleyin
-- Detaylı analiz metrikleri
-- Görsel grafikler
-- Güvenilirlik skorları
-- Teknik detaylar
+### 5. Review Results
+- Detailed analysis metrics
+- Visual graphs
+- Reliability scores
+- Technical details
 
-## 🧠 Teknoloji
+## 🧠 Technology
 
-### 🔬 **Bilimsel Yöntemler**
+### 🔬 **Scientific Methods**
 - **Ensemble Learning**: Random Forest, SVM, Gaussian Process
-- **Feature Engineering**: 2048+ özellik çıkarımı
-- **Statistical Analysis**: Moment analizi, normallik testleri
-- **Anomaly Detection**: Isolation Forest algoritması
-- **Entropy Analysis**: Bilgi teorisi bazlı analiz
-- **Bayesian Inference**: Probabilistic model kalibrasyonu
+- **Feature Engineering**: 2048+ feature extraction
+- **Statistical Analysis**: Moment analysis, normality tests
+- **Anomaly Detection**: Isolation Forest algorithm
+- **Entropy Analysis**: Information theory based analysis
+- **Bayesian Inference**: Probabilistic model calibration
 
-### 🏗️ **Mimari**
+### 🏗️ **Architecture**
 ```
 📁 FakeBuster/
-├── 🎯 app.py                    # Streamlit web arayüzü
-├── 🧠 deepfake_detector.py      # Ana analiz motoru
-├── 🛠️ utils.py                  # Yardımcı fonksiyonlar
-├── 🧪 test_detector.py          # Test scripti
-├── 📋 requirements.txt          # Python bağımlılıkları
-└── 📖 README.md                 # Bu dosya
+├── 🎯 app.py                    # Streamlit web interface
+├── 🧠 deepfake_detector.py      # Main analysis engine
+├── 🛠️ utils.py                  # Helper functions
+├── 🧪 test_detector.py          # Test script
+├── 📋 requirements.txt          # Python dependencies
+└── 📖 README.md                 # This file
 ```
 
-### 🎨 **UI/UX Özellikleri**
-- **Modern Streamlit Arayüzü**
+### 🎨 **UI/UX Features**
+- **Modern Streamlit Interface**
 - **Real-time Progress Tracking**
 - **Interactive Visualizations**
 - **Responsive Design**
-- **Türkçe Yerelleştirme**
+- **English Localization**
 
-## 📊 Analiz Detayları
+## 📊 Analysis Details
 
-### 🖼️ **Fotoğraf Analizi Çıktısı**
+### 🖼️ **Photo Analysis Output**
 ```python
 {
-    'is_fake': True,                    # SAHTE/GERÇEK
-    'confidence': 0.87,                 # Güven skoru
-    'adjusted_confidence': 0.82,        # Ayarlı skor
-    'uncertainty': 0.15,                # Belirsizlik
-    'reliability_score': 0.91,          # Güvenilirlik
-    'scale_consistency': 0.88,          # Ölçek tutarlılığı
-    'result_category': 'Yüksek Güvenilirlik',
+    'is_fake': True,                    # FAKE/REAL
+    'confidence': 0.87,                 # Confidence score
+    'adjusted_confidence': 0.82,        # Adjusted score
+    'uncertainty': 0.15,                # Uncertainty
+    'reliability_score': 0.91,          # Reliability
+    'scale_consistency': 0.88,          # Scale consistency
+    'result_category': 'High Reliability',
     'quality_metrics': {
-        'certainty': 0.85,              # Kesinlik
-        'consistency': 0.92,            # Tutarlılık
-        'reliability': 0.91             # Güvenilirlik
+        'certainty': 0.85,              # Certainty
+        'consistency': 0.92,            # Consistency
+        'reliability': 0.91             # Reliability
     }
 }
 ```
 
-### 🎬 **Video Analizi Çıktısı**
+### 🎬 **Video Analysis Output**
 ```python
 {
-    'fake_percentage': 65.0,            # Sahte frame %
-    'temporal_consistency': 0.94,       # Temporal tutarlılık
-    'overall_reliability': 0.89,        # Ortalama güvenilirlik
+    'fake_percentage': 65.0,            # Fake frame %
+    'temporal_consistency': 0.94,       # Temporal consistency
+    'overall_reliability': 0.89,        # Average reliability
     'video_ensemble': {
-        'confidence_stability': 0.87,   # Skor kararlılığı
-        'frame_agreement': 0.91,        # Frame uyumu
-        'uncertainty_trend': 0.88       # Belirsizlik trendi
+        'confidence_stability': 0.87,   # Score stability
+        'frame_agreement': 0.91,        # Frame agreement
+        'uncertainty_trend': 0.88       # Uncertainty trend
     },
-    'decision_threshold': 60.0          # Dinamik eşik
+    'decision_threshold': 60.0          # Dynamic threshold
 }
 ```
 
-## 🎯 Desteklenen Modeller
+## 🎯 Supported Models
 
-### 📸 **Fotoğraf Modelleri**
-- **🔬 DeepFaceLab**: Deepfake üretimi ve analiz
-- **🕵️ FaceForensics++**: Kapsamlı tespit algoritması
-- **🎨 GANDetector**: StyleGAN tespit uzmanı
+### 📸 **Photo Models**
+- **🔬 DeepFaceLab**: Deepfake production and analysis
+- **🕵️ FaceForensics++**: Comprehensive detection algorithm
+- **🎨 GANDetector**: StyleGAN detection specialist
 
-### 🎬 **Video Modelleri**
-- **🎯 XceptionNet**: Video deepfake tespiti
-- **🔍 DFDNet**: Yüz iyileştirme ve analiz
+### 🎬 **Video Models**
+- **🎯 XceptionNet**: Video deepfake detection
+- **🔍 DFDNet**: Face enhancement and analysis
 
-## 📈 Performans
+## 📈 Performance
 
-### ⚡ **Hız**
-- **Fotoğraf**: ~2-5 saniye (ortalama)
-- **Video**: ~30 frame/10 saniye (ayarlanabilir)
+### ⚡ **Speed**
+- **Photos**: ~2-5 seconds (average)
+- **Videos**: ~30 frames/10 seconds (adjustable)
 
-### 🎯 **Doğruluk**
-- **Ensemble Yöntem**: %90+ doğruluk
-- **Belirsizlik Tahmini**: %95+ güvenilirlik
-- **Temporal Analiz**: %98+ tutarlılık
+### 🎯 **Accuracy**
+- **Ensemble Method**: 90%+ accuracy
+- **Uncertainty Estimation**: 95%+ reliability
+- **Temporal Analysis**: 98%+ consistency
 
-### 💾 **Kaynak Kullanımı**
-- **RAM**: ~2-4 GB (model boyutuna göre)
-- **GPU**: Opsiyonel (CUDA desteği)
-- **Disk**: ~1 GB (model dosyaları)
+### 💾 **Resource Usage**
+- **RAM**: ~2-4 GB (depending on model size)
+- **GPU**: Optional (CUDA support)
+- **Disk**: ~1 GB (model files)
 
-## 🔧 Yapılandırma
+## 🔧 Configuration
 
-### ⚙️ **Gelişmiş Ayarlar**
+### ⚙️ **Advanced Settings**
 ```python
-# deepfake_detector.py içinde
-CONFIDENCE_THRESHOLD = 0.50         # Varsayılan eşik
-MAX_FRAMES = 30                     # Video frame limiti
-FEATURE_DIMENSION = 2048            # Özellik boyutu
-ENSEMBLE_WEIGHTS = {                # Ensemble ağırlıkları
+# Inside deepfake_detector.py
+CONFIDENCE_THRESHOLD = 0.50         # Default threshold
+MAX_FRAMES = 30                     # Video frame limit
+FEATURE_DIMENSION = 2048            # Feature dimension
+ENSEMBLE_WEIGHTS = {                # Ensemble weights
     'feature_based': 0.4,
     'statistical': 0.3,
     'anomaly': 0.2,
@@ -225,49 +225,49 @@ ENSEMBLE_WEIGHTS = {                # Ensemble ağırlıkları
 }
 ```
 
-## 🤝 Katkıda Bulunma
+## 🤝 Contributing
 
-1. **Fork** edin
-2. **Feature branch** oluşturun (`git checkout -b feature/amazing-feature`)
-3. **Commit** edin (`git commit -m 'Add amazing feature'`)
-4. **Push** edin (`git push origin feature/amazing-feature`)
-5. **Pull Request** açın
+1. **Fork** the project
+2. Create a **feature branch** (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. Open a **Pull Request**
 
-## 📝 Geliştirme Notları
+## 📝 Development Notes
 
-### 🔄 **Gelecek Özellikler**
-- [ ] GPU optimizasyonu
+### 🔄 **Future Features**
+- [ ] GPU optimization
 - [ ] Batch processing
 - [ ] REST API
 - [ ] Mobile app
 - [ ] Real-time webcam detection
 - [ ] Cloud deployment
 
-### 🐛 **Bilinen Sorunlar**
-- ⚠️ `face_recognition` kütüphanesi Windows'ta kurulum sorunu (geçici olarak devre dışı)
-- ⚠️ Büyük video dosyalarında memory kullanımı
+### 🐛 **Known Issues**
+- ⚠️ `face_recognition` library installation issue on Windows (temporarily disabled)
+- ⚠️ Memory usage with large video files
 
-## 📞 Destek
+## 📞 Support
 
-### 🆘 **Sorun Bildirimi**
-- GitHub Issues kullanın
-- Detaylı hata açıklaması ekleyin
-- System specs belirtin
+### 🆘 **Issue Reporting**
+- Use GitHub Issues
+- Add detailed error description
+- Specify system specs
 
-### 📚 **Dokümantasyon**
-- Kod içi yorumlar mevcut
-- Function docstrings eksiksiz
-- Type hints kullanılmış
+### 📚 **Documentation**
+- In-code comments available
+- Function docstrings complete
+- Type hints used
 
-## 📄 Lisans
+## 📄 License
 
-Bu proje MIT Lisansı altında lisanslanmıştır. Detaylar için [LICENSE](LICENSE) dosyasına bakın.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## 🙏 Teşekkürler
+## 🙏 Acknowledgments
 
-Bu proje şu açık kaynak projelerden ilham almıştır:
-- **OpenCV** - Görüntü işleme
-- **MediaPipe** - Yüz tespiti
+This project is inspired by the following open source projects:
+- **OpenCV** - Image processing
+- **MediaPipe** - Face detection
 - **Scikit-learn** - Machine learning
 - **Streamlit** - Web framework
 - **TensorFlow** - Deep learning
@@ -276,4 +276,4 @@ Bu proje şu açık kaynak projelerden ilham almıştır:
 
 **⚡ Made with ❤️ and lots of ☕**
 
-*Bu araç eğitim ve araştırma amaçlıdır. Üretim ortamında kullanmadan önce kapsamlı test yapın.*
+*This tool is for educational and research purposes. Please perform comprehensive testing before using in production environments.*
